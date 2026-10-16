@@ -1,0 +1,28 @@
+# Specific documents and archives requested to ignore
+A_to_Z_Software_Development_Plan_Technical_Specification.docx
+az-business-system-starter.zip
+comprehensive_plan.md
+
+# Environment variables & secrets
+.env
+*.env
+
+# Python / Virtual Environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Database
+*.sqlite3
+
+# Node / Frontend builds
+node_modules/
+dist/
+build/
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
