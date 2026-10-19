@@ -1,530 +1,548 @@
-<div align="center">
-
-<img src="frontend_app/src/assets/logos/az-graphics.jpg" height="64" alt="A to Z Graphics" />
-&nbsp;&nbsp;&nbsp;
-<img src="frontend_app/src/assets/logos/az-cnc-services.jpg" height="64" alt="A to Z CNC Services" />
-
 # A to Z Business & Production Management System
 
-**A unified full-stack platform for A to Z Graphics — Branding & Gifts Shop and A to Z CNC Services.**  
-Centralises customer management, job tracking, quotations, finance, expenses, production and reporting across the Nairobi (NBI) and Meru (MER) branches.
+The **A to Z Business & Production Management System (BPMS)** is a web application designed to help **A to Z Graphics — Branding & Gifts Shop** and **A to Z CNC Services** manage their daily work from one place.
 
-[![Django](https://img.shields.io/badge/Django-5.2-0C4B33?logo=django&logoColor=white)](https://www.djangoproject.com/)
-[![DRF](https://img.shields.io/badge/Django_REST_Framework-3.16-red)](https://www.django-rest-framework.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+Instead of keeping customer details, quotations, jobs, payments, expenses, and reports in separate records, staff can use one system to manage them. The system supports the Nairobi Head Office (NBI) and the Meru Regional Branch (MER).
 
-</div>
+- **A to Z Graphics:** branding, printing, signage, and corporate gifts.
+- **A to Z CNC Services:** CNC cutting, precision machining, and fabrication.
+- **Currency:** Kenyan shillings (KES).
+- **Time zone:** East Africa Time (Africa/Nairobi, UTC+3).
 
----
+The two businesses share the same login system and application, while staff permissions and access to records depend on their role and branch.
 
-## Table of Contents
+## Contents
 
-1. [System Overview](#system-overview)
-2. [Technology Stack](#technology-stack)
-3. [Architecture](#architecture)
-4. [Project Structure](#project-structure)
-5. [Prerequisites](#prerequisites)
-6. [Backend Setup (Django)](#backend-setup-django)
-7. [Frontend Setup (React + Vite)](#frontend-setup-react--vite)
-8. [Environment Variables Reference](#environment-variables-reference)
-9. [Database Setup (PostgreSQL)](#database-setup-postgresql)
-10. [Running the Full Stack](#running-the-full-stack)
-11. [API Documentation](#api-documentation)
-12. [Demo Login Credentials](#demo-login-credentials)
-13. [Module Overview](#module-overview)
-14. [Role & Permissions Matrix](#role--permissions-matrix)
-15. [Contributing](#contributing)
+1. [How the system works](#how-the-system-works)
+2. [Technologies used](#technologies-used)
+3. [System design](#system-design)
+4. [Project folders](#project-folders)
+5. [What you need before starting](#what-you-need-before-starting)
+6. [Set up the Django backend](#set-up-the-django-backend)
+7. [Set up the React frontend](#set-up-the-react-frontend)
+8. [Environment settings](#environment-settings)
+9. [Set up PostgreSQL](#set-up-postgresql)
+10. [Run the whole system](#run-the-whole-system)
+11. [API documentation](#api-documentation)
+12. [Demo accounts](#demo-accounts)
+13. [System features](#system-features)
+14. [Staff roles and permissions](#staff-roles-and-permissions)
+15. [Contributing to the project](#contributing-to-the-project)
 
----
+## How the system works
 
-## System Overview
+The system has three main parts:
 
-The **A to Z Business & Production Management System** (BPMS) is a multi-branch, multi-business-unit web application built for two closely related Kenyan businesses:
+1. **Frontend:** the website that staff open in a browser. It contains the login page, navigation menu, dashboards, forms, tables, and reports.
+2. **Backend:** the Django application that receives requests from the website, checks permissions, applies business rules, and returns data.
+3. **Database:** PostgreSQL stores business information such as customers, jobs, quotations, invoices, payments, and expenses. During local development, the project can use SQLite if no database connection has been configured.
 
-| Business | Domain | Accent Color |
+When a staff member performs an action, the website sends a request to the backend. The backend checks the request and the user's permissions, works with the database, and sends a response back to the website.
+
+### Main business areas
+
+| Business | Main activities | Brand colour |
 |---|---|---|
-| **A to Z Graphics — Branding & Gifts Shop** | Design, printing, signage, corporate gifts | Cyan `#08BCE5` |
-| **A to Z CNC Services** | CNC cutting, precision machining, fabrication | Orange `#F7941D` |
+| A to Z Graphics — Branding & Gifts Shop | Design, printing, signage, and corporate gifts | Cyan (`#08BCE5`) |
+| A to Z CNC Services | CNC cutting, precision machining, and fabrication | Orange (`#F7941D`) |
 
-Both businesses share a single platform, unified authentication, role-based access control (RBAC), and branch-level data scoping. The system currently supports the Nairobi Head Office (NBI) and Meru Regional Branch (MER).
+## Technologies used
 
-**Currency:** KES (Kenyan Shilling)  
-**Timezone:** Africa/Nairobi (EAT, UTC+3)
-
----
-
-## Technology Stack
+The project uses the following tools and technologies.
 
 ### Backend
 
-| Layer | Technology | Version | Purpose |
-|---|---|---|---|
-| Framework | **Django** | 5.2 | Core web framework |
-| REST API | **Django REST Framework** | 3.16 | RESTful API layer |
-| Authentication | **djangorestframework-simplejwt** | 5.5 | JWT access + refresh tokens |
-| API Schema | **drf-spectacular** | 0.30 | OpenAPI 3 / Swagger docs |
-| CORS | **django-cors-headers** | 4.9 | Cross-origin request handling |
-| Filtering | **django-filter** | 24.3 | Query-param filtering |
-| Image handling | **Pillow** | 10.4 | Logo / media processing |
-| Database ORM | **Django ORM** | — | Database abstraction |
-| Database driver | **dj-database-url** | — | DATABASE_URL parsing |
-| Config | **python-dotenv** | — | `.env` file loading |
+| Technology | What it does |
+|---|---|
+| Django 5.2 | Provides the main backend application and business logic. |
+| Django REST Framework 3.16 | Allows the frontend to communicate with the backend through an API. |
+| Simple JWT 5.5 | Handles login tokens used to authenticate API requests. |
+| drf-spectacular 0.30 | Generates the interactive API documentation. |
+| django-cors-headers 4.9 | Controls which frontend websites are allowed to make requests to the API. |
+| django-filter 24.3 | Supports filtering API results. |
+| Pillow 10.4 | Supports image processing, including logos and media. |
+| Django ORM | Lets the application work with database records using Python models. |
+| dj-database-url | Reads database connection settings from a URL. |
+| python-dotenv | Loads configuration values from a `.env` file. |
 
 ### Database
 
-| Technology | Purpose |
-|---|---|
-| **PostgreSQL 15+** | Primary production database |
-| **SQLite 3** | Dev fallback (auto-used when `DATABASE_URL` is empty) |
+- **PostgreSQL 15 or later:** the recommended database for production.
+- **SQLite 3:** a lightweight option used automatically for local development when `DATABASE_URL` is empty.
 
 ### Frontend
 
-| Layer | Technology | Version | Purpose |
-|---|---|---|---|
-| Framework | **React** | 19 | UI component framework |
-| Language | **TypeScript** | 7 | Typed JavaScript |
-| Build tool | **Vite** | 8 | Fast dev server + bundler |
-| Styling | **Tailwind CSS** | 3 | Utility-first CSS |
-| Icons | **Lucide React** | 1.59 | Consistent icon set |
-| HTTP client | **Axios** | 1.20 | API communication |
-| Server state | **TanStack Query** | 5 | Caching & async state |
-| Linting | **oxlint** | 1.88 | Fast TypeScript/React linter |
-
-### Typography (Google Fonts)
-
-| Font | Usage |
+| Technology | What it does |
 |---|---|
-| **Space Grotesk** | Page headings, dashboard totals, section titles |
-| **Manrope** | Body text, forms, tables, navigation |
-| **IBM Plex Mono** | Job refs, invoice numbers, transaction codes |
+| React 19 | Builds the website interface from reusable components. |
+| TypeScript 7 | Adds types to JavaScript code to help catch mistakes. |
+| Vite 8 | Runs the development server and builds the website for production. |
+| Tailwind CSS 3 | Provides utility classes for styling the interface. |
+| Lucide React 1.59 | Supplies icons used throughout the website. |
+| Axios 1.20 | Sends HTTP requests to the backend API. |
+| TanStack Query 5 | Manages, caches, and refreshes data received from the API. |
+| oxlint 1.88 | Checks the frontend code for common issues. |
 
----
+### Fonts
 
-## Architecture
+The interface uses three Google Fonts for different purposes:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Browser (React SPA)                  │
-│              http://localhost:5173                      │
-│                                                         │
-│  ┌──────────┐  ┌────────────┐  ┌────────────────────┐  │
-│  │  Login   │  │  Sidebar   │  │   Module Pages      │  │
-│  │  (JWT)   │  │  + Header  │  │  Customers / Jobs   │  │
-│  └──────────┘  └────────────┘  │  Quotations / Inv.  │  │
-│                                │  Expenses / Reports  │  │
-│                                │  Audit Logs         │  │
-│                                └────────────────────┘  │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP/JSON  Bearer JWT
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│               Django REST Framework API                 │
-│               http://localhost:8000/api/v1/             │
-│                                                         │
-│  ┌─────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
-│  │accounts │ │customers │ │quotation │ │   jobs    │  │
-│  ├─────────┤ ├──────────┤ ├──────────┤ ├───────────┤  │
-│  │branches │ │services  │ │ designs  │ │  finance  │  │
-│  ├─────────┤ ├──────────┤ ├──────────┤ ├───────────┤  │
-│  │  audit  │ │expenses  │ │   core   │ │           │  │
-│  └─────────┘ └──────────┘ └──────────┘ └───────────┘  │
-│                                                         │
-│              JWT Auth · RBAC · Branch Scoping           │
-└────────────────────┬────────────────────────────────────┘
-                     │ Django ORM
-                     ▼
-         ┌───────────────────────┐
-         │    PostgreSQL 15+     │
-         │   az_business_db      │
-         └───────────────────────┘
-```
+- **Space Grotesk:** headings, dashboard totals, and section titles.
+- **Manrope:** ordinary text, forms, tables, and navigation.
+- **IBM Plex Mono:** job references, invoice numbers, and transaction codes.
 
-**Key architectural decisions:**
+## System design
 
-- **Append-only audit ledger** — all `CREATE`, `UPDATE`, `DELETE`, `APPROVE`, `REJECT` and status-change operations are logged to `apps.audit`.
-- **Price snapshots** — quotation and job-item `unit_price` / `description` fields are snapshotted at creation time so historical records are unaffected by catalogue changes.
-- **Decimal-safe finance** — all monetary fields use `DecimalField(max_digits=12, decimal_places=2)`; totals are always authoritative from the backend.
-- **Branch scoping** — every business record carries a `branch` FK enforced at the serializer / queryset layer, not just the UI.
-- **JWT auth** — 60-minute access tokens, 7-day rotating refresh tokens, `Bearer` scheme.
+The application follows a frontend–backend–database structure.
 
----
+1. A staff member opens the React website in a browser at `http://localhost:5173`.
+2. The website sends API requests to Django at `http://localhost:8000/api/v1/`.
+3. Django checks authentication, user permissions, and branch access before processing the request.
+4. Django reads or updates the database through its ORM.
+5. The API returns a response that the website displays to the user.
 
-## Project Structure
+The backend contains separate applications for accounts, branches, customers, services, quotations, jobs, designs, finance, expenses, and audit logs.
 
-```
+### Important design decisions
+
+- **Audit history:** important actions such as creating, updating, deleting, approving, rejecting, or changing a record's status are recorded in the audit application. Audit entries are designed to be append-only.
+- **Historical prices:** quotations and job items keep a copy of the description and unit price used when they were created. Later changes to the service catalogue therefore do not automatically change old records.
+- **Accurate financial calculations:** money fields use decimal values with two decimal places. Financial totals should be calculated and confirmed by the backend rather than trusted solely to the browser.
+- **Branch access:** business records are linked to a branch. The backend applies branch restrictions when returning or changing records, rather than relying only on what the interface displays.
+- **Token-based login:** the frontend uses JSON Web Tokens (JWT) to authenticate API requests. The access token is sent using the `Bearer` authorization scheme.
+
+> **Note:** The architecture section describes the intended configuration. Check the current settings and code if you need to confirm exact token lifetimes or production behaviour.
+
+## Project folders
+
+The repository is named `Brandlab`. Its main folders are organised as follows:
+
+```text
 Brandlab/
-├── backend/                          # Django project
+├── backend/                         # Django backend
 │   ├── config/
-│   │   ├── settings.py               # Central settings (env-driven)
-│   │   ├── urls.py                   # Root URL config + DRF router
-│   │   ├── wsgi.py
-│   │   └── asgi.py
+│   │   ├── settings.py              # Main application settings
+│   │   ├── urls.py                  # Main URL and API routing
+│   │   ├── wsgi.py                  # WSGI entry point
+│   │   └── asgi.py                  # ASGI entry point
 │   ├── apps/
-│   │   ├── core/                     # Abstract base models, pagination, permissions, exceptions
-│   │   ├── accounts/                 # Custom User model, Role model, JWT views
-│   │   ├── branches/                 # Branch model (NBI / MER)
-│   │   ├── audit/                    # AuditLog append-only model + utils
-│   │   ├── customers/                # Customer CRM
-│   │   ├── services/                 # Service catalogue (ServiceCategory + Service)
-│   │   ├── quotations/               # Quotation + QuotationItem
-│   │   ├── jobs/                     # Job + JobItem + JobStatusHistory
-│   │   ├── designs/                  # DesignAssignment (artwork proofing)
-│   │   ├── finance/                  # Invoice + Payment + Receipt
-│   │   └── expenses/                 # Expense + approval workflow
-│   ├── .env                          # Local secrets (git-ignored)
-│   ├── .env.example                  # Template — copy to .env
-│   ├── requirements.txt              # Python dependencies
-│   └── manage.py
-│
-├── frontend_app/                     # React + Vite SPA
+│   │   ├── core/                    # Shared models, permissions and utilities
+│   │   ├── accounts/                # Users, roles and login
+│   │   ├── branches/                # Nairobi and Meru branches
+│   │   ├── audit/                   # Audit history
+│   │   ├── customers/               # Customer records
+│   │   ├── services/                # Services and service categories
+│   │   ├── quotations/              # Quotations and quotation items
+│   │   ├── jobs/                    # Jobs, job items and status history
+│   │   ├── designs/                 # Design assignments and artwork proofing
+│   │   ├── finance/                 # Invoices, payments and receipts
+│   │   └── expenses/                # Expenses and approvals
+│   ├── .env                         # Local secrets; do not commit this file
+│   ├── .env.example                 # Example configuration template
+│   ├── requirements.txt             # Python package list
+│   └── manage.py                    # Django management commands
+├── frontend_app/                    # React website
 │   ├── src/
-│   │   ├── assets/logos/             # az-graphics.jpg, az-cnc-services.jpg
-│   │   ├── types/
-│   │   │   └── business.ts           # BusinessUnit type + BUSINESS_UNITS config
+│   │   ├── assets/logos/             # Business logos
+│   │   ├── types/                    # TypeScript types and business-unit settings
 │   │   ├── components/
-│   │   │   ├── layout/               # MainLayout, AppSidebar, AppHeader
-│   │   │   └── branding/             # BrandLogo, BrandHeader, BusinessUnitSwitcher
+│   │   │   ├── layout/               # Main layout, sidebar and header
+│   │   │   └── branding/             # Logos, headers and business switcher
 │   │   ├── features/
-│   │   │   ├── auth/                 # LoginPage (JWT + demo fallback)
-│   │   │   ├── dashboard/            # DashboardPage (KPIs, pipeline, quick actions)
-│   │   │   ├── customers/            # CustomersPage (grid + modal)
-│   │   │   ├── quotations/           # QuotationsPage (pipeline + table)
-│   │   │   ├── jobs/                 # JobsPage (expandable cards + status pipeline)
-│   │   │   ├── finance/              # InvoicesPage (invoices + payment ledger)
-│   │   │   ├── expenses/             # ExpensesPage (approval workflow)
-│   │   │   ├── reports/              # ReportsPage (KPIs, bar chart, top customers)
-│   │   │   └── audit/                # AuditPage (append-only log)
-│   │   ├── App.tsx                   # Root — JWT state, login/app routing
-│   │   ├── main.tsx
-│   │   └── index.css                 # Tailwind imports + scrollbar styles
-│   ├── tailwind.config.js            # Brand design tokens
-│   ├── vite.config.ts
-│   ├── tsconfig.json
-│   └── package.json
-│
-├── comprehensive_plan.md             # Full technical specification v2.0
-└── README.md                         # This file
+│   │   │   ├── auth/                 # Login
+│   │   │   ├── dashboard/             # Summary dashboard and quick actions
+│   │   │   ├── customers/             # Customer directory
+│   │   │   ├── quotations/            # Quotations
+│   │   │   ├── jobs/                  # Job cards and progress
+│   │   │   ├── finance/               # Invoices and payments
+│   │   │   ├── expenses/              # Expense approval
+│   │   │   ├── reports/               # Business reports
+│   │   │   └── audit/                 # Audit history
+│   │   ├── App.tsx                    # Main app and login routing
+│   │   ├── main.tsx                   # Frontend entry point
+│   │   └── index.css                  # Global styles
+│   ├── tailwind.config.js             # Styling configuration
+│   ├── vite.config.ts                 # Vite configuration
+│   ├── tsconfig.json                  # TypeScript configuration
+│   └── package.json                  # Frontend dependencies and commands
+├── comprehensive_plan.md              # Detailed technical plan
+└── README.md                          # Project instructions
 ```
 
----
+## What you need before starting
 
-## Prerequisites
+Install these tools before setting up the project:
 
-Ensure the following are installed before starting:
+| Tool | Minimum version | How to check |
+|---|---:|---|
+| Python | 3.11 | `python --version` |
+| Node.js | 18 LTS | `node --version` |
+| npm | 9 | `npm --version` |
+| PostgreSQL | 15 | `psql --version` |
+| Git | 2.x | `git --version` |
 
-| Tool | Minimum version | Check |
-|---|---|---|
-| **Python** | 3.11 | `python --version` |
-| **Node.js** | 18 (LTS) | `node --version` |
-| **npm** | 9 | `npm --version` |
-| **PostgreSQL** | 15 | `psql --version` |
-| **Git** | 2.x | `git --version` |
+On Windows, the backend instructions use a Python virtual environment called `.venv`. Activate it before running the backend's Python or pip commands.
 
-> **Windows users:** The backend uses a `.venv` virtual environment. All `python` / `pip` commands below assume you have activated it.
+## Set up the Django backend
 
----
+### 1. Download the project
 
-## Backend Setup (Django)
-
-### 1. Clone the repository
+Open a terminal and run:
 
 ```bash
 git clone https://github.com/krymoevanag/Brandlab.git
 cd Brandlab
 ```
 
-### 2. Create and activate a virtual environment
+### 2. Create and activate a Python virtual environment
 
-```bash
-# Windows (PowerShell)
+**Windows PowerShell:**
+
+```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+```
 
-# macOS / Linux
+**macOS or Linux:**
+
+```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. Install Python dependencies
+A virtual environment keeps this project's Python packages separate from packages used by other projects.
+
+### 3. Install the backend packages
+
+With the virtual environment activated, run:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+### 4. Configure the environment
+
+Copy the example configuration file to a new `.env` file:
 
 ```bash
-# Copy the template
 cp .env.example .env
 ```
 
-Open `.env` and fill in your values (see [Environment Variables Reference](#environment-variables-reference)).
+On Windows, you can also copy `.env.example` to `.env` using File Explorer. Open `.env` and enter the values required for your setup. The most important settings are explained in the [Environment settings](#environment-settings) section.
 
-### 5. Run database migrations
+Do not commit `.env` to Git because it may contain passwords or secret keys.
+
+### 5. Create the database tables
+
+Run the database migrations:
 
 ```bash
 python manage.py migrate
 ```
 
-### 6. Seed initial data (branches, roles, owner account)
+Migrations create or update the database tables required by the application.
+
+### 6. Add the initial data
+
+Run:
 
 ```bash
 python manage.py seed_initial_data
 ```
 
-This creates:
-- Branches: **Nairobi (NBI)** and **Meru (MER)**
-- Roles: `owner`, `branch_manager`, `finance_officer`, `sales_attendant`, `designer`, `cnc_operator`, `storekeeper`
-- A default owner account (credentials printed to console)
+According to the project setup, this command creates:
 
-### 7. Create a superuser (optional — for Django Admin)
+- The Nairobi (`NBI`) and Meru (`MER`) branches.
+- The roles `owner`, `branch_manager`, `finance_officer`, `sales_attendant`, `designer`, `cnc_operator`, and `storekeeper`.
+- A default owner account. The command prints the account details in the terminal.
+
+### 7. Create a Django administrator account (optional)
+
+If you need access to Django's built-in administration site, run:
 
 ```bash
 python manage.py createsuperuser
 ```
 
-### 8. Verify the setup
+Follow the prompts to create the account.
+
+### 8. Check the project configuration
+
+Run:
 
 ```bash
 python manage.py check
-# Expected: System check identified no issues (0 silenced).
 ```
 
-### 9. Start the development server
+If everything is configured correctly, Django should report that it found no system-check issues.
+
+### 9. Start the backend
+
+Run:
 
 ```bash
 python manage.py runserver 8000
 ```
 
-The API is now live at **http://localhost:8000/api/v1/**.
+The backend API should now be available at `http://localhost:8000/api/v1/`.
 
----
+## Set up the React frontend
 
-## Frontend Setup (React + Vite)
+Keep the backend running, then open a **second terminal**.
 
-### 1. Navigate to the frontend directory
+### 1. Open the frontend folder
+
+From the project root, run:
 
 ```bash
-cd ../frontend_app   # from project root: cd Brandlab/frontend_app
+cd frontend_app
 ```
 
-### 2. Install Node dependencies
+If your terminal is still inside `backend`, run `cd ../frontend_app` instead.
+
+### 2. Install the frontend packages
 
 ```bash
 npm install
 ```
 
-### 3. Start the development server
+This installs the packages listed in `package.json`.
+
+### 3. Start the website
 
 ```bash
 npm run dev
 ```
 
-The React app is now live at **http://localhost:5173**.
+Vite normally makes the development website available at `http://localhost:5173/`.
 
-> Vite proxies are not configured — the frontend calls the Django API at `http://localhost:8000` directly. Ensure Django is running before logging in.
+The frontend is configured to call Django directly at `http://localhost:8000`. The README does not describe a Vite proxy, so start the Django backend before trying to log in.
 
-### Other frontend commands
+### Other useful frontend commands
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Start local development server (HMR) |
-| `npm run build` | Production bundle (`dist/`) |
-| `npm run preview` | Preview production build locally |
-| `npm run lint` | Run oxlint TypeScript/React linter |
-| `npx tsc --noEmit` | TypeScript type-check without emitting files |
+| `npm run dev` | Starts the development website and reloads changes as you work. |
+| `npm run build` | Builds the production version into `dist/`. |
+| `npm run preview` | Lets you preview the production build locally. |
+| `npm run lint` | Checks the frontend code using oxlint. |
+| `npx tsc --noEmit` | Checks TypeScript types without generating output files. |
 
----
+## Environment settings
 
-## Environment Variables Reference
+The backend reads its configuration from the `.env` file inside the `backend/` folder.
 
-All backend configuration is controlled by `.env` inside the `backend/` directory.
-
-| Variable | Required | Default | Description |
+| Setting | Required? | Default | What it means |
 |---|---|---|---|
-| `DJANGO_SECRET_KEY` | ✅ Yes | — | Django secret key. Generate with `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"` |
-| `DJANGO_DEBUG` | No | `False` | Set to `True` for local development |
-| `DJANGO_ALLOWED_HOSTS` | No | `127.0.0.1,localhost` | Comma-separated list of allowed hostnames |
-| `DJANGO_CORS_ALLOWED_ORIGINS` | No | `http://localhost:5173` | Comma-separated list of frontend origins allowed to call the API |
-| `DATABASE_URL` | No* | — | Full PostgreSQL connection string. If omitted, SQLite is used as a fallback. **Use PostgreSQL in production.** |
+| `DJANGO_SECRET_KEY` | Yes | None | A private key Django uses for security-related functions. Generate a strong key for your environment. |
+| `DJANGO_DEBUG` | No | `False` | Enables extra debugging information. Use `True` only for local development; keep it `False` in production. |
+| `DJANGO_ALLOWED_HOSTS` | No | `127.0.0.1,localhost` | The hostnames that Django is allowed to serve. |
+| `DJANGO_CORS_ALLOWED_ORIGINS` | No | `http://localhost:5173` | Frontend origins permitted to send browser requests to the API. |
+| `DATABASE_URL` | No for local fallback | None | The database connection details. If it is empty, the project falls back to SQLite. Use PostgreSQL for production. |
 
-**`DATABASE_URL` format:**
+Generate a Django secret key with:
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
+
+A PostgreSQL connection URL follows this format:
+
+```text
 postgresql://USER:PASSWORD@HOST:PORT/DBNAME
-# Example:
-postgresql://az_app_user:mypassword@127.0.0.1:5432/az_business_db
 ```
 
----
+For example, a local database URL might look like this:
 
-## Database Setup (PostgreSQL)
+```text
+postgresql://az_app_user:your_strong_password@127.0.0.1:5432/az_business_db
+```
 
-### Create the database and user
+Replace the example username, password, host, port, and database name with your own values. Do not use the example password in a real deployment.
+
+## Set up PostgreSQL
+
+PostgreSQL is recommended for a production installation.
+
+### 1. Create a database user and database
+
+Open `psql` using an account with permission to create databases and users:
+
+```bash
+psql -U postgres
+```
+
+Then run the following SQL commands, replacing the example password with a strong password:
 
 ```sql
--- Connect as postgres superuser
-psql -U postgres
-
--- Create a dedicated database user
 CREATE USER az_app_user WITH PASSWORD 'your_strong_password';
-
--- Create the database
 CREATE DATABASE az_business_db OWNER az_app_user;
-
--- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE az_business_db TO az_app_user;
+```
 
+Exit the PostgreSQL prompt:
+
+```sql
 \q
 ```
 
-### Update your `.env`
+### 2. Add the database connection to `.env`
+
+Set `DATABASE_URL` in `backend/.env`:
 
 ```env
 DATABASE_URL=postgresql://az_app_user:your_strong_password@127.0.0.1:5432/az_business_db
 ```
 
-Then run migrations:
+Use the actual password you set when creating the database user.
+
+### 3. Create the tables and initial data
+
+From the `backend/` folder, with the virtual environment activated, run:
 
 ```bash
-cd backend
 python manage.py migrate
 python manage.py seed_initial_data
 ```
 
----
+## Run the whole system
 
-## Running the Full Stack
+You need **two terminal windows**: one for Django and one for React.
 
-Open **two terminal windows**:
+**Terminal 1 — Backend**
 
-**Terminal 1 — Django API:**
-```bash
-cd Brandlab/backend
-.\.venv\Scripts\Activate.ps1     # Windows
-# source .venv/bin/activate      # macOS/Linux
+```powershell
+cd Brandlab\backend
+.\.venv\Scripts\Activate.ps1
 python manage.py runserver 8000
 ```
 
-**Terminal 2 — React Frontend:**
+On macOS or Linux, activate the environment with `source .venv/bin/activate` instead.
+
+**Terminal 2 — Frontend**
+
 ```bash
 cd Brandlab/frontend_app
 npm run dev
 ```
 
-Then open **http://localhost:5173** in your browser.
+Open `http://localhost:5173/` in your browser. Keep both terminal windows running while you use the application.
 
----
+## API documentation
 
-## API Documentation
+The project generates interactive API documentation automatically. Start the Django server first, then open one of these addresses:
 
-Interactive API documentation is auto-generated by **drf-spectacular**:
-
-| URL | Interface |
+| Address | What it provides |
 |---|---|
-| http://localhost:8000/api/docs/ | **Swagger UI** — try requests live |
-| http://localhost:8000/api/redoc/ | **ReDoc** — clean reference view |
-| http://localhost:8000/api/schema/ | **OpenAPI 3 YAML** — raw schema |
+| `http://localhost:8000/api/docs/` | **Swagger UI:** explore API endpoints and try requests. |
+| `http://localhost:8000/api/redoc/` | **ReDoc:** a readable reference guide to the API. |
+| `http://localhost:8000/api/schema/` | The OpenAPI schema in YAML format. |
 
-### Core API endpoints
+### Main API endpoints
 
+The following routes are listed in the project documentation:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/auth/token/` | Log in and receive access and refresh tokens, along with user information. |
+| `POST` | `/api/v1/auth/token/refresh/` | Request a new access token using a refresh token. |
+| `GET` | `/api/v1/auth/me/` | Get information about the currently logged-in user. |
+| `GET` | `/api/v1/branches/` | List branches the user is allowed to access. |
+| `GET` | `/api/v1/customers/` | List or search customers. |
+| `POST` | `/api/v1/customers/` | Create a customer record. |
+| `GET` | `/api/v1/services/` | View the service catalogue. |
+| `GET` | `/api/v1/quotations/` | View quotations. |
+| `GET` | `/api/v1/jobs/` | View job cards. |
+| `GET` | `/api/v1/invoices/` | View invoices. |
+| `GET` | `/api/v1/payments/` | View payment records. |
+| `GET` | `/api/v1/expenses/` | View expenses. |
+| `GET` | `/api/v1/audit-logs/` | Read the audit history. |
+| `GET` | `/api/v1/reports/` | Access financial summary endpoints. |
+
+Except for the login endpoint, API requests require an access token in the request header:
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
-POST   /api/v1/auth/token/           # Login → { access, refresh, user }
-POST   /api/v1/auth/token/refresh/   # Refresh access token
-GET    /api/v1/auth/me/              # Current user profile
 
-GET    /api/v1/branches/             # List branches
-GET    /api/v1/customers/            # List / search customers
-POST   /api/v1/customers/            # Create customer
-GET    /api/v1/services/             # Service catalogue
-GET    /api/v1/quotations/           # Quotations
-GET    /api/v1/jobs/                 # Job cards
-GET    /api/v1/invoices/             # Invoices
-GET    /api/v1/payments/             # Payment records
-GET    /api/v1/expenses/             # Expenses
-GET    /api/v1/audit-logs/           # Audit trail (read-only)
-GET    /api/v1/reports/              # Financial summary endpoints
-```
+The exact data and permissions available from an endpoint depend on the backend implementation and the logged-in user's role.
 
-All endpoints require `Authorization: Bearer <access_token>` except `/api/v1/auth/token/`.
+## Demo accounts
 
----
-
-## Demo Login Credentials
-
-The `seed_initial_data` management command creates the following demo accounts:
+The `seed_initial_data` command is documented as creating the following development accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| 👑 Owner / Super Admin | `owner@atozgraphics.co.ke` | `Password123!` |
-| 🏢 Branch Manager (NBI) | `mgr.nbi@atozgraphics.co.ke` | `Password123!` |
-| 🏢 Branch Manager (MER) | `mgr.mer@atozgraphics.co.ke` | `Password123!` |
-| 💼 Sales Attendant | `sales.nbi@atozgraphics.co.ke` | `Password123!` |
-| 🎨 Designer | `designer@atozgraphics.co.ke` | `Password123!` |
+| Owner / Super Admin | `owner@atozgraphics.co.ke` | `Password123!` |
+| Nairobi Branch Manager | `mgr.nbi@atozgraphics.co.ke` | `Password123!` |
+| Meru Branch Manager | `mgr.mer@atozgraphics.co.ke` | `Password123!` |
+| Sales Attendant | `sales.nbi@atozgraphics.co.ke` | `Password123!` |
+| Designer | `designer@atozgraphics.co.ke` | `Password123!` |
 
-> The login page includes a **Demo Staff Roles** quick-fill panel so you can switch between roles during development without typing credentials.
+The login page also includes a **Demo Staff Roles** panel for quickly filling in demo login details during development.
 
-> **If the Django server is not running**, the frontend automatically falls back to demo mode and detects the role from the email address pattern (`mgr` → Branch Manager, `sales` → Sales Attendant, `designer` → Designer).
+The README says that if Django is unavailable, the frontend can switch to a demo mode and identify a role from the email pattern. For example, `mgr` identifies a branch manager, `sales` identifies a sales attendant, and `designer` identifies a designer.
 
----
+> **Security reminder:** These are development demo credentials, not safe production credentials. Change or disable demo accounts before deploying the system publicly.
 
-## Module Overview
+## System features
 
-| Sidebar Item | Backend App | Status | Description |
-|---|---|---|---|
-| Dashboard | — | ✅ Done | KPIs, job pipeline, quick actions, business-unit breakdown |
-| Customers | `apps.customers` | ✅ Done | CRM directory, card grid, add-customer modal |
-| Orders & Quotations | `apps.quotations` | ✅ Done | Pipeline summary (Draft→Converted), status table |
-| Job Cards | `apps.jobs` | ✅ Done | Expandable cards, 7-step pipeline, priority badges |
-| Invoices & Payments | `apps.finance` | ✅ Done | Invoice table, payment ledger (Cash/M-Pesa/Bank) |
-| Expenses | `apps.expenses` | ✅ Done | Approval workflow, category breakdown |
-| Reports | — | ✅ Done | KPIs, 6-month bar chart, branch & top-customer tables |
-| Audit Logs | `apps.audit` | ✅ Done | Append-only ledger, action filter, tamper-proof |
-| CNC Production | `apps.jobs` | 🔲 Planned | Machine run sheets, operator assignment |
-| Materials & Stock | — | 🔲 Planned | Inventory, low-stock alerts, branch transfers |
-| Design Studio | `apps.designs` | 🔲 Planned | Artwork upload, proofing, approval workflow |
+The README marks the following modules as complete or planned. Actual availability should be confirmed against the current code.
 
----
+| Feature | Current status in the README | What it does |
+|---|---|---|
+| Dashboard | Complete | Displays key performance indicators, job progress, quick actions, and a breakdown by business unit. |
+| Customers | Complete | Shows customer records in a directory and provides a form for adding customers. |
+| Orders and quotations | Complete | Tracks quotations from draft through to conversion. |
+| Job cards | Complete | Displays job details, priority, and progress through a seven-stage workflow. |
+| Invoices and payments | Complete | Manages invoices and payment records, including cash, M-Pesa, and bank payments. |
+| Expenses | Complete | Supports expense approval and summaries by category. |
+| Reports | Complete | Displays key figures, a six-month chart, branch summaries, and top-customer information. |
+| Audit logs | Complete | Keeps a history of recorded actions for review. |
+| CNC production | Planned | Intended to manage machine run sheets and assign operators. |
+| Materials and stock | Planned | Intended to track inventory, low-stock alerts, and transfers between branches. |
+| Design studio | Planned | Intended to support artwork uploads, proofing, and approval. |
 
-## Role & Permissions Matrix
+## Staff roles and permissions
 
-| Permission | Owner | Br. Manager | Finance Officer | Sales | Designer | CNC Operator |
+Access depends on the staff member's role. The table below reflects the permissions listed in the original README.
+
+| Permission | Owner | Branch Manager | Finance Officer | Sales Attendant | Designer | CNC Operator |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-| View all branches | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Manage users | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Approve expenses | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Create quotations | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| Advance job status | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
-| View financial reports | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Issue invoices | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Record payments | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| View audit log | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| View all branches | Yes | No | No | No | No | No |
+| Manage users | Yes | No | No | No | No | No |
+| Approve expenses | Yes | Yes | Yes | No | No | No |
+| Create quotations | Yes | Yes | No | Yes | No | No |
+| Move a job to its next status | Yes | Yes | No | Yes | Yes | Yes |
+| View financial reports | Yes | Yes | Yes | No | No | No |
+| Issue invoices | Yes | Yes | Yes | No | No | No |
+| Record payments | Yes | Yes | Yes | Yes | No | No |
+| View audit history | Yes | Yes | Yes | No | No | No |
 
-> All permissions are enforced **server-side** via DRF permission classes. UI hiding is for usability only.
+Permissions are intended to be checked by the backend, using Django REST Framework permission classes. Hiding a button in the website is not enough to protect an action; the API must also reject requests from users who lack permission.
+
+## Contributing to the project
+
+If you want to contribute code:
+
+1. Fork the repository on GitHub.
+2. Create a separate branch for your change:
+
+   ```bash
+   git checkout -b feature/my-feature
+   ```
+
+3. Make your changes and commit them with a clear message.
+4. Open a pull request against the `main` branch.
+
+### Coding guidelines
+
+- **Backend:** follow PEP 8, give models useful `__str__` methods, and call `log_audit()` when an operation changes important business data or state.
+- **Frontend:** use TypeScript strict mode, React functional components, and interfaces to define component props.
+- **Financial and audit records:** do not permanently delete these records. Use soft deletion or reversal records where appropriate so the history remains available.
 
 ---
 
-## Contributing
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/my-feature`.
-3. Commit your changes with a meaningful message.
-4. Open a Pull Request against `main`.
-
-### Code standards
-
-- **Backend:** PEP 8, meaningful model `__str__`, always add `log_audit()` for state-changing operations.
-- **Frontend:** TypeScript strict mode, functional components, props typed with interfaces.
-- **Database:** Never delete financial or audit records — use soft deletes or reversal records.
-
----
-
-<div align="center">
-
-Built for **A to Z Graphics & CNC Services** · Nairobi & Meru, Kenya 🇰🇪
-
-</div>
+**Built for A to Z Graphics and A to Z CNC Services — Nairobi and Meru, Kenya.**
