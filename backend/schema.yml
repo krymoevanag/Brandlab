@@ -1,0 +1,5497 @@
+openapi: 3.0.3
+info:
+  title: A to Z Business & Production Management System API
+  version: 2.0.0
+  description: Centralized REST API serving A to Z Graphics and A to Z CNC Services
+    across Nairobi and Meru branches.
+paths:
+  /api/health/:
+    get:
+      operationId: health_retrieve
+      tags:
+      - health
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+          description: ''
+  /api/v1/audit-logs/:
+    get:
+      operationId: v1_audit_logs_list
+      description: |-
+        Read-only viewset for immutable audit logs.
+        Restricted to Owners, Superadmins, and Branch Managers (scoped to assigned branch).
+      parameters:
+      - in: query
+        name: action
+        schema:
+          type: string
+          enum:
+          - APPROVE
+          - CONVERT
+          - CREATE
+          - DELETE
+          - EXPORT
+          - LOGIN
+          - PAYMENT
+          - REJECT
+          - REVERSE
+          - UPDATE
+          - VOID
+        description: |-
+          * `CREATE` - Create
+          * `UPDATE` - Update
+          * `DELETE` - Delete
+          * `APPROVE` - Approve
+          * `REJECT` - Reject
+          * `VOID` - Void / Cancel
+          * `REVERSE` - Reverse
+          * `EXPORT` - Export
+          * `LOGIN` - Login
+          * `PAYMENT` - Payment
+          * `CONVERT` - Convert Quotation to Job
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: entity
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: user
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAuditLogList'
+          description: ''
+  /api/v1/audit-logs/{id}/:
+    get:
+      operationId: v1_audit_logs_retrieve
+      description: |-
+        Read-only viewset for immutable audit logs.
+        Restricted to Owners, Superadmins, and Branch Managers (scoped to assigned branch).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Audit Log.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLog'
+          description: ''
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomTokenObtainPair'
+          description: ''
+  /api/v1/auth/me/:
+    get:
+      operationId: v1_auth_me_retrieve
+      description: Returns profile information of the currently authenticated user.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+  /api/v1/auth/token/:
+    post:
+      operationId: v1_auth_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomTokenObtainPair'
+          description: ''
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: v1_auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/branches/:
+    get:
+      operationId: v1_branches_list
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedBranchList'
+          description: ''
+    post:
+      operationId: v1_branches_create
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Branch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Branch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Branch'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+  /api/v1/branches/{id}/:
+    get:
+      operationId: v1_branches_retrieve
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this branch.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+    put:
+      operationId: v1_branches_update
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this branch.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Branch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Branch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Branch'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+    patch:
+      operationId: v1_branches_partial_update
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this branch.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedBranch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedBranch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedBranch'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+          description: ''
+    delete:
+      operationId: v1_branches_destroy
+      description: |-
+        CRUD for branches.
+        Only Owner / Super Admin can create, update, or deactivate branches.
+        All authenticated staff can view branches they have access to.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this branch.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/customers/:
+    get:
+      operationId: v1_customers_list
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer_type
+        schema:
+          type: string
+          enum:
+          - corporate
+          - individual
+        description: |-
+          * `individual` - Individual
+          * `corporate` - Corporate / Business
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCustomerList'
+          description: ''
+    post:
+      operationId: v1_customers_create
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Customer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Customer'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+          description: ''
+  /api/v1/customers/{id}/:
+    get:
+      operationId: v1_customers_retrieve
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this customer.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+          description: ''
+    put:
+      operationId: v1_customers_update
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this customer.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Customer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Customer'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+          description: ''
+    patch:
+      operationId: v1_customers_partial_update
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this customer.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomer'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomer'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCustomer'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+          description: ''
+    delete:
+      operationId: v1_customers_destroy
+      description: |-
+        Customer Directory:
+        Searchable across name, phone, email, address.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this customer.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/design-assignments/:
+    get:
+      operationId: v1_design_assignments_list
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      parameters:
+      - in: query
+        name: designer
+        schema:
+          type: integer
+      - in: query
+        name: job
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - approved
+          - assigned
+          - in_progress
+          - rejected
+          - review_pending
+          - revision_requested
+        description: |-
+          * `assigned` - Assigned
+          * `in_progress` - In Progress
+          * `review_pending` - Pending Review
+          * `revision_requested` - Revision Requested
+          * `approved` - Approved
+          * `rejected` - Rejected
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDesignAssignmentList'
+          description: ''
+    post:
+      operationId: v1_design_assignments_create
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+  /api/v1/design-assignments/{id}/:
+    get:
+      operationId: v1_design_assignments_retrieve
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+    put:
+      operationId: v1_design_assignments_update
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+    patch:
+      operationId: v1_design_assignments_partial_update
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDesignAssignment'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+    delete:
+      operationId: v1_design_assignments_destroy
+      description: |-
+        Design & Artwork Lifecycle:
+        - Versioned artwork uploads
+        - Revision requests and commenting
+        - Authorized approval gate
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/design-assignments/{id}/approve/:
+    post:
+      operationId: v1_design_assignments_approve_create
+      description: |-
+        Approves design. Authorized: Owner, Branch Manager, or Sales Attendant.
+        Also transitions Job status to 'design_approved'.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+  /api/v1/design-assignments/{id}/comment/:
+    post:
+      operationId: v1_design_assignments_comment_create
+      description: Adds a review comment or feedback to the assignment.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+  /api/v1/design-assignments/{id}/request-revision/:
+    post:
+      operationId: v1_design_assignments_request_revision_create
+      description: Requests artwork revision with feedback note.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+  /api/v1/design-assignments/{id}/upload-file/:
+    post:
+      operationId: v1_design_assignments_upload_file_create
+      description: |-
+        Uploads a new version of artwork for this assignment.
+        Auto-increments version and calculates SHA-256.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this design assignment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DesignAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignAssignment'
+          description: ''
+  /api/v1/expenses/:
+    get:
+      operationId: v1_expenses_list
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - equipment
+          - operating
+          - other
+          - production
+          - staff
+          - transport
+        description: |-
+          * `operating` - Operating (Rent, Electricity, Water, Internet, Security)
+          * `production` - Production (Consumables, Ink, Vinyl, Blades, Outsourced)
+          * `transport` - Transport & Delivery (Fuel, Repairs, Courier, Delivery)
+          * `staff` - Staff & Administration (Salaries, Casual Labour, Allowances, Supplies)
+          * `equipment` - Equipment & Maintenance (Repairs, Subscriptions, Licences)
+          * `other` - Other Miscellaneous
+      - in: query
+        name: department
+        schema:
+          type: string
+          enum:
+          - administration
+          - cnc
+          - graphics
+          - sales
+          - transport
+        description: |-
+          * `graphics` - Graphics & Printing
+          * `cnc` - CNC Services
+          * `administration` - Administration & Office
+          * `transport` - Transport & Logistics
+          * `sales` - Sales & Marketing
+      - in: query
+        name: job
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: payment_method
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - bank_transfer
+          - cash
+          - mpesa
+        description: |-
+          * `cash` - Cash
+          * `mpesa` - M-Pesa
+          * `bank_transfer` - Bank Transfer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - approved
+          - paid
+          - pending
+          - rejected
+        description: |-
+          * `pending` - Pending Approval
+          * `approved` - Approved
+          * `rejected` - Rejected
+          * `paid` - Paid
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExpenseList'
+          description: ''
+    post:
+      operationId: v1_expenses_create
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Expense'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+  /api/v1/expenses/{id}/:
+    get:
+      operationId: v1_expenses_retrieve
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+    put:
+      operationId: v1_expenses_update
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Expense'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+    patch:
+      operationId: v1_expenses_partial_update
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExpense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExpense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExpense'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+    delete:
+      operationId: v1_expenses_destroy
+      description: |-
+        Elevated Expense Tracker:
+        - Capture operational, production, transport, staff, and equipment costs
+        - Independent approval policy (no self-approval)
+        - Distinct tracking of incurred vs. paid dates
+        - Executive dashboard summary metrics
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/expenses/{id}/approve/:
+    post:
+      operationId: v1_expenses_approve_create
+      description: |-
+        Approves an expense.
+        Rule: Staff cannot approve their own expense submission unless superuser.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Expense'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+  /api/v1/expenses/{id}/pay/:
+    post:
+      operationId: v1_expenses_pay_create
+      description: |-
+        Records the actual disbursement of funds for an approved expense.
+        Payload: {"date_paid": "2026-10-19", "payment_method": "mpesa", "notes": "Ref: QKJ38..."}
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Expense'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+  /api/v1/expenses/{id}/reject/:
+    post:
+      operationId: v1_expenses_reject_create
+      description: Rejects an expense with documented reason.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this expense.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Expense'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Expense'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+  /api/v1/expenses/summary/:
+    get:
+      operationId: v1_expenses_summary_retrieve
+      description: |-
+        Summary metrics for the Release 1 Expense Dashboard:
+        - Expenses this month
+        - Pending approval count
+        - Unpaid expenses
+        - Paid this month
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+          description: ''
+  /api/v1/invoices/:
+    get:
+      operationId: v1_invoices_list
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer
+        schema:
+          type: integer
+      - in: query
+        name: job
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - draft
+          - issued
+          - paid
+          - partially_paid
+          - voided
+        description: |-
+          * `draft` - Draft
+          * `issued` - Issued
+          * `partially_paid` - Partially Paid
+          * `paid` - Paid in Full
+          * `voided` - Voided
+          * `cancelled` - Cancelled
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInvoiceList'
+          description: ''
+    post:
+      operationId: v1_invoices_create
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+  /api/v1/invoices/{id}/:
+    get:
+      operationId: v1_invoices_retrieve
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    put:
+      operationId: v1_invoices_update
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    patch:
+      operationId: v1_invoices_partial_update
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedInvoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedInvoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedInvoice'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+    delete:
+      operationId: v1_invoices_destroy
+      description: |-
+        Invoice Management:
+        - Branch-scoped access
+        - Balance tracking linked to payment allocations
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this invoice.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/invoices/generate-from-job/:
+    post:
+      operationId: v1_invoices_generate_from_job_create
+      description: |-
+        Generates an Invoice directly from a confirmed Job.
+        Payload: {"job_id": 1, "due_at": "2026-11-01", "notes": "..."}
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Invoice'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+          description: ''
+  /api/v1/jobs/:
+    get:
+      operationId: v1_jobs_list
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - high
+          - low
+          - normal
+          - urgent
+        description: |-
+          * `low` - Low
+          * `normal` - Normal
+          * `high` - High
+          * `urgent` - Urgent
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - delivered
+          - design_approved
+          - design_pending
+          - in_production
+          - pending_deposit
+          - quality_check
+          - ready_for_delivery
+        description: |-
+          * `pending_deposit` - Pending Deposit
+          * `design_pending` - Design / Artwork Pending
+          * `design_approved` - Design Approved
+          * `in_production` - In Production
+          * `quality_check` - Quality Check
+          * `ready_for_delivery` - Ready for Delivery / Collection
+          * `delivered` - Delivered / Completed
+          * `cancelled` - Cancelled
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJobList'
+          description: ''
+    post:
+      operationId: v1_jobs_create
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Job'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Job'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+  /api/v1/jobs/{id}/:
+    get:
+      operationId: v1_jobs_retrieve
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+    put:
+      operationId: v1_jobs_update
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Job'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Job'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+    patch:
+      operationId: v1_jobs_partial_update
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedJob'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedJob'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedJob'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+    delete:
+      operationId: v1_jobs_destroy
+      description: |-
+        Job / Order Management:
+        - Branch-scoped querysets.
+        - Snapshot pricing.
+        - Status transitions with history and audit logs.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/jobs/{id}/status/:
+    post:
+      operationId: v1_jobs_status_create
+      description: |-
+        Updates job status with reason and audit history.
+        Payload: {"status": "in_production", "reason": "Deposit confirmed"}
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this job.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Job'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Job'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Job'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+          description: ''
+  /api/v1/payments/:
+    get:
+      operationId: v1_payments_list
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer
+        schema:
+          type: integer
+      - in: query
+        name: method
+        schema:
+          type: string
+          enum:
+          - bank_transfer
+          - cash
+          - mpesa
+        description: |-
+          * `mpesa` - M-Pesa
+          * `cash` - Cash
+          * `bank_transfer` - Bank Transfer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - completed
+          - refunded
+          - reversed
+        description: |-
+          * `completed` - Completed
+          * `reversed` - Reversed
+          * `refunded` - Refunded
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPaymentList'
+          description: ''
+    post:
+      operationId: v1_payments_create
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/{id}/:
+    get:
+      operationId: v1_payments_retrieve
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this payment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    put:
+      operationId: v1_payments_update
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this payment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    patch:
+      operationId: v1_payments_partial_update
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this payment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPayment'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+    delete:
+      operationId: v1_payments_destroy
+      description: |-
+        Payment Processing:
+        - Idempotency key protection against duplicates
+        - Partial and multi-invoice allocations
+        - Automated separate Receipt generation
+        - Documented reversal workflow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this payment.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/payments/{id}/reverse/:
+    post:
+      operationId: v1_payments_reverse_create
+      description: |-
+        Reverses a posted payment. Requires Finance Officer or Owner/Manager approval.
+        Updates allocated invoices and logs full audit trail.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this payment.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Payment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Payment'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/quotations/:
+    get:
+      operationId: v1_quotations_list
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - accepted
+          - converted
+          - draft
+          - expired
+          - rejected
+          - sent
+        description: |-
+          * `draft` - Draft
+          * `sent` - Sent to Customer
+          * `accepted` - Accepted
+          * `rejected` - Rejected
+          * `expired` - Expired
+          * `converted` - Converted to Job
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedQuotationList'
+          description: ''
+    post:
+      operationId: v1_quotations_create
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+          description: ''
+  /api/v1/quotations/{id}/:
+    get:
+      operationId: v1_quotations_retrieve
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this quotation.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+          description: ''
+    put:
+      operationId: v1_quotations_update
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this quotation.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+          description: ''
+    patch:
+      operationId: v1_quotations_partial_update
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this quotation.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedQuotation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedQuotation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedQuotation'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+          description: ''
+    delete:
+      operationId: v1_quotations_destroy
+      description: |-
+        Quotation Management:
+        - Branch-scoped access.
+        - Snapshot pricing on all lines.
+        - 1-step atomic conversion to Job.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this quotation.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/quotations/{id}/convert-to-job/:
+    post:
+      operationId: v1_quotations_convert_to_job_create
+      description: |-
+        Converts an accepted (or active) quotation to an official Job.
+        Freezes exact agreed prices from quotation into job items.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this quotation.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Quotation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+          description: ''
+  /api/v1/receipts/:
+    get:
+      operationId: v1_receipts_list
+      description: |-
+        Receipt Records:
+        Separately numbered from invoices, immutable payment proof.
+      parameters:
+      - in: query
+        name: branch
+        schema:
+          type: integer
+      - in: query
+        name: customer
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReceiptList'
+          description: ''
+  /api/v1/receipts/{id}/:
+    get:
+      operationId: v1_receipts_retrieve
+      description: |-
+        Receipt Records:
+        Separately numbered from invoices, immutable payment proof.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this receipt.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+          description: ''
+  /api/v1/roles/:
+    get:
+      operationId: v1_roles_list
+      description: List and retrieve available system roles.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoleList'
+          description: ''
+  /api/v1/roles/{id}/:
+    get:
+      operationId: v1_roles_retrieve
+      description: List and retrieve available system roles.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this role.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+          description: ''
+  /api/v1/service-categories/:
+    get:
+      operationId: v1_service_categories_list
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedServiceCategoryList'
+          description: ''
+    post:
+      operationId: v1_service_categories_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceCategory'
+          description: ''
+  /api/v1/service-categories/{id}/:
+    get:
+      operationId: v1_service_categories_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Service Category.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceCategory'
+          description: ''
+    put:
+      operationId: v1_service_categories_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Service Category.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServiceCategory'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceCategory'
+          description: ''
+    patch:
+      operationId: v1_service_categories_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Service Category.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedServiceCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedServiceCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedServiceCategory'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceCategory'
+          description: ''
+    delete:
+      operationId: v1_service_categories_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Service Category.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/services/:
+    get:
+      operationId: v1_services_list
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: unit
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedServiceList'
+          description: ''
+    post:
+      operationId: v1_services_create
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Service'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Service'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Service'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+          description: ''
+  /api/v1/services/{id}/:
+    get:
+      operationId: v1_services_retrieve
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this service.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+          description: ''
+    put:
+      operationId: v1_services_update
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this service.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Service'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Service'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Service'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+          description: ''
+    patch:
+      operationId: v1_services_partial_update
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this service.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedService'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedService'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedService'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+          description: ''
+    delete:
+      operationId: v1_services_destroy
+      description: |-
+        Service Catalogue & Base Pricing.
+        Read-only for regular staff; CRUD restricted to Owner / Super Admin.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this service.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/users/:
+    get:
+      operationId: v1_users_list
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+    post:
+      operationId: v1_users_create
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateUpdate'
+          description: ''
+  /api/v1/users/{id}/:
+    get:
+      operationId: v1_users_retrieve
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+    put:
+      operationId: v1_users_update
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreateUpdate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateUpdate'
+          description: ''
+    patch:
+      operationId: v1_users_partial_update
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserCreateUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserCreateUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserCreateUpdate'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateUpdate'
+          description: ''
+    delete:
+      operationId: v1_users_destroy
+      description: |-
+        User Management:
+        Strictly restricted to Superadmins and Owners.
+        Every creation, update, role/branch assignment, and deactivation is audited.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    ActionEnum:
+      enum:
+      - CREATE
+      - UPDATE
+      - DELETE
+      - APPROVE
+      - REJECT
+      - VOID
+      - REVERSE
+      - EXPORT
+      - LOGIN
+      - PAYMENT
+      - CONVERT
+      type: string
+      description: |-
+        * `CREATE` - Create
+        * `UPDATE` - Update
+        * `DELETE` - Delete
+        * `APPROVE` - Approve
+        * `REJECT` - Reject
+        * `VOID` - Void / Cancel
+        * `REVERSE` - Reverse
+        * `EXPORT` - Export
+        * `LOGIN` - Login
+        * `PAYMENT` - Payment
+        * `CONVERT` - Convert Quotation to Job
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+          nullable: true
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        branch:
+          type: integer
+          readOnly: true
+          nullable: true
+        branch_name:
+          type: string
+          readOnly: true
+        branch_code:
+          type: string
+          readOnly: true
+        action:
+          allOf:
+          - $ref: '#/components/schemas/ActionEnum'
+          readOnly: true
+        entity:
+          type: string
+          readOnly: true
+        entity_id:
+          type: string
+          readOnly: true
+        before:
+          readOnly: true
+        after:
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        ip_address:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - after
+      - before
+      - branch
+      - branch_code
+      - branch_name
+      - created_at
+      - entity
+      - entity_id
+      - id
+      - ip_address
+      - reason
+      - user
+      - user_email
+    BlankEnum:
+      enum:
+      - ''
+    Branch:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          maxLength: 30
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 120
+        address:
+          type: string
+        phone_number:
+          type: string
+          maxLength: 25
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - code
+      - created_at
+      - id
+      - name
+      - updated_at
+    CategoryEnum:
+      enum:
+      - operating
+      - production
+      - transport
+      - staff
+      - equipment
+      - other
+      type: string
+      description: |-
+        * `operating` - Operating (Rent, Electricity, Water, Internet, Security)
+        * `production` - Production (Consumables, Ink, Vinyl, Blades, Outsourced)
+        * `transport` - Transport & Delivery (Fuel, Repairs, Courier, Delivery)
+        * `staff` - Staff & Administration (Salaries, Casual Labour, Allowances, Supplies)
+        * `equipment` - Equipment & Maintenance (Repairs, Subscriptions, Licences)
+        * `other` - Other Miscellaneous
+    CustomTokenObtainPair:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        customer_type:
+          $ref: '#/components/schemas/CustomerTypeEnum'
+        address:
+          type: string
+        branch:
+          type: integer
+          nullable: true
+          description: Primary branch where customer was registered
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branch_details
+      - created_at
+      - id
+      - name
+      - phone
+      - updated_at
+    CustomerTypeEnum:
+      enum:
+      - individual
+      - corporate
+      type: string
+      description: |-
+        * `individual` - Individual
+        * `corporate` - Corporate / Business
+    DepartmentEnum:
+      enum:
+      - graphics
+      - cnc
+      - administration
+      - transport
+      - sales
+      type: string
+      description: |-
+        * `graphics` - Graphics & Printing
+        * `cnc` - CNC Services
+        * `administration` - Administration & Office
+        * `transport` - Transport & Logistics
+        * `sales` - Sales & Marketing
+    DesignAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        job:
+          type: integer
+        job_number:
+          type: string
+          readOnly: true
+        designer:
+          type: integer
+        designer_email:
+          type: string
+          format: email
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/DesignAssignmentStatusEnum'
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        approved_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        approved_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DesignFile'
+          readOnly: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/DesignComment'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - approved_at
+      - approved_by
+      - approved_by_email
+      - comments
+      - created_at
+      - designer
+      - designer_email
+      - files
+      - id
+      - job
+      - job_number
+      - updated_at
+    DesignAssignmentStatusEnum:
+      enum:
+      - assigned
+      - in_progress
+      - review_pending
+      - revision_requested
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `assigned` - Assigned
+        * `in_progress` - In Progress
+        * `review_pending` - Pending Review
+        * `revision_requested` - Revision Requested
+        * `approved` - Approved
+        * `rejected` - Rejected
+    DesignComment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        assignment:
+          type: integer
+        author:
+          type: integer
+          readOnly: true
+        author_email:
+          type: string
+          format: email
+          readOnly: true
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assignment
+      - author
+      - author_email
+      - comment
+      - created_at
+      - id
+    DesignFile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        assignment:
+          type: integer
+        version:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+        file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        filename:
+          type: string
+          maxLength: 255
+        checksum:
+          type: string
+          readOnly: true
+          description: SHA-256 checksum
+        file_size:
+          type: integer
+          readOnly: true
+        notes:
+          type: string
+        uploaded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        uploaded_by_email:
+          type: string
+          format: email
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - assignment
+      - checksum
+      - created_at
+      - file
+      - file_size
+      - file_url
+      - filename
+      - id
+      - uploaded_by
+      - uploaded_by_email
+      - version
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        expense_number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        department:
+          $ref: '#/components/schemas/DepartmentEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Amount in KES
+        supplier:
+          type: string
+          description: Supplier or recipient who received the funds
+          maxLength: 150
+        description:
+          type: string
+          description: Item purchased or service paid for
+        date_incurred:
+          type: string
+          format: date
+          description: Date when expense occurred
+        date_paid:
+          type: string
+          format: date
+          nullable: true
+          description: Date payment occurred
+        payment_method:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        status:
+          $ref: '#/components/schemas/ExpenseStatusEnum'
+        submitted_by:
+          type: integer
+          readOnly: true
+        submitted_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        approved_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        job:
+          type: integer
+          nullable: true
+          description: Optional link to specific job costing
+        job_number:
+          type: string
+          readOnly: true
+        receipt_file:
+          type: string
+          format: uri
+          nullable: true
+          description: Supporting receipt or bill attachment
+        receipt_file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - approved_at
+      - approved_by
+      - approved_by_email
+      - branch
+      - branch_details
+      - category
+      - created_at
+      - date_incurred
+      - department
+      - description
+      - expense_number
+      - id
+      - job_number
+      - receipt_file_url
+      - submitted_by
+      - submitted_by_email
+      - supplier
+      - updated_at
+    ExpenseStatusEnum:
+      enum:
+      - pending
+      - approved
+      - rejected
+      - paid
+      type: string
+      description: |-
+        * `pending` - Pending Approval
+        * `approved` - Approved
+        * `rejected` - Rejected
+        * `paid` - Paid
+    HealthCheckResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+      required:
+      - service
+      - status
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        job:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/InvoiceStatusEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        paid_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        balance_due:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        due_at:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAllocation'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - allocations
+      - balance_due
+      - branch
+      - branch_details
+      - created_at
+      - created_by
+      - created_by_email
+      - customer
+      - customer_details
+      - id
+      - number
+      - paid_amount
+      - updated_at
+    InvoiceStatusEnum:
+      enum:
+      - draft
+      - issued
+      - partially_paid
+      - paid
+      - voided
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `issued` - Issued
+        * `partially_paid` - Partially Paid
+        * `paid` - Paid in Full
+        * `voided` - Voided
+        * `cancelled` - Cancelled
+    Job:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        quotation:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/JobStatusEnum'
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobItem'
+        status_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobStatusHistory'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branch
+      - branch_details
+      - created_at
+      - created_by
+      - created_by_email
+      - customer
+      - customer_details
+      - id
+      - number
+      - status_history
+      - subtotal
+      - total
+      - updated_at
+    JobItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        service:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          description: Snapshot description
+          maxLength: 255
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Price snapshot
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        line_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - description
+      - id
+      - line_total
+      - unit_price
+    JobStatusEnum:
+      enum:
+      - pending_deposit
+      - design_pending
+      - design_approved
+      - in_production
+      - quality_check
+      - ready_for_delivery
+      - delivered
+      - cancelled
+      type: string
+      description: |-
+        * `pending_deposit` - Pending Deposit
+        * `design_pending` - Design / Artwork Pending
+        * `design_approved` - Design Approved
+        * `in_production` - In Production
+        * `quality_check` - Quality Check
+        * `ready_for_delivery` - Ready for Delivery / Collection
+        * `delivered` - Delivered / Completed
+        * `cancelled` - Cancelled
+    JobStatusHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        from_status:
+          type: string
+          readOnly: true
+        to_status:
+          type: string
+          readOnly: true
+        changed_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        changed_by_email:
+          type: string
+          format: email
+          readOnly: true
+        reason:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - changed_by
+      - changed_by_email
+      - created_at
+      - from_status
+      - id
+      - reason
+      - to_status
+    MethodEnum:
+      enum:
+      - mpesa
+      - cash
+      - bank_transfer
+      type: string
+      description: |-
+        * `mpesa` - M-Pesa
+        * `cash` - Cash
+        * `bank_transfer` - Bank Transfer
+    NullEnum:
+      enum:
+      - null
+    PaginatedAuditLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+    PaginatedBranchList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+    PaginatedCustomerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+    PaginatedDesignAssignmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DesignAssignment'
+    PaginatedExpenseList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Expense'
+    PaginatedInvoiceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+    PaginatedJobList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+    PaginatedPaymentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+    PaginatedQuotationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quotation'
+    PaginatedReceiptList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Receipt'
+    PaginatedRoleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+    PaginatedServiceCategoryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceCategory'
+    PaginatedServiceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+    PaginatedUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PatchedBranch:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          maxLength: 30
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 120
+        address:
+          type: string
+        phone_number:
+          type: string
+          maxLength: 25
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedCustomer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        customer_type:
+          $ref: '#/components/schemas/CustomerTypeEnum'
+        address:
+          type: string
+        branch:
+          type: integer
+          nullable: true
+          description: Primary branch where customer was registered
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedDesignAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        job:
+          type: integer
+        job_number:
+          type: string
+          readOnly: true
+        designer:
+          type: integer
+        designer_email:
+          type: string
+          format: email
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/DesignAssignmentStatusEnum'
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        approved_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        approved_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DesignFile'
+          readOnly: true
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/DesignComment'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedExpense:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        expense_number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        department:
+          $ref: '#/components/schemas/DepartmentEnum'
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Amount in KES
+        supplier:
+          type: string
+          description: Supplier or recipient who received the funds
+          maxLength: 150
+        description:
+          type: string
+          description: Item purchased or service paid for
+        date_incurred:
+          type: string
+          format: date
+          description: Date when expense occurred
+        date_paid:
+          type: string
+          format: date
+          nullable: true
+          description: Date payment occurred
+        payment_method:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        status:
+          $ref: '#/components/schemas/ExpenseStatusEnum'
+        submitted_by:
+          type: integer
+          readOnly: true
+        submitted_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        approved_by_email:
+          type: string
+          format: email
+          readOnly: true
+        approved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        job:
+          type: integer
+          nullable: true
+          description: Optional link to specific job costing
+        job_number:
+          type: string
+          readOnly: true
+        receipt_file:
+          type: string
+          format: uri
+          nullable: true
+          description: Supporting receipt or bill attachment
+        receipt_file_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedInvoice:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        job:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/InvoiceStatusEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        paid_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        balance_due:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        due_at:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAllocation'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedJob:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        quotation:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/JobStatusEnum'
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobItem'
+        status_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobStatusHistory'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        method:
+          $ref: '#/components/schemas/MethodEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        reference:
+          type: string
+          description: M-Pesa transaction code, bank reference, etc.
+          maxLength: 100
+        idempotency_key:
+          type: string
+          description: Prevents duplicate transaction processing
+          maxLength: 100
+        status:
+          $ref: '#/components/schemas/PaymentStatusEnum'
+        received_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        recorded_by_email:
+          type: string
+          format: email
+          readOnly: true
+        notes:
+          type: string
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAllocation'
+          readOnly: true
+        receipt:
+          allOf:
+          - $ref: '#/components/schemas/Receipt'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedQuotation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/QuotationStatusEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        valid_until:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotationItem'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedService:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        code:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+        unit:
+          type: string
+          description: Measurement unit e.g. sqm, m, pcs, sheet, hour
+          maxLength: 30
+        base_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Base price in KES per unit
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedServiceCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+        is_active:
+          type: boolean
+        services_count:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedUserCreateUpdate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 25
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        role_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        branch_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        default_branch:
+          type: integer
+          nullable: true
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        method:
+          $ref: '#/components/schemas/MethodEnum'
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        reference:
+          type: string
+          description: M-Pesa transaction code, bank reference, etc.
+          maxLength: 100
+        idempotency_key:
+          type: string
+          description: Prevents duplicate transaction processing
+          maxLength: 100
+        status:
+          $ref: '#/components/schemas/PaymentStatusEnum'
+        received_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        recorded_by_email:
+          type: string
+          format: email
+          readOnly: true
+        notes:
+          type: string
+        allocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAllocation'
+          readOnly: true
+        receipt:
+          allOf:
+          - $ref: '#/components/schemas/Receipt'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - allocations
+      - amount
+      - branch
+      - branch_details
+      - created_at
+      - customer
+      - customer_details
+      - id
+      - idempotency_key
+      - method
+      - receipt
+      - recorded_by
+      - recorded_by_email
+      - updated_at
+    PaymentAllocation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        invoice:
+          type: integer
+        invoice_number:
+          type: string
+          readOnly: true
+        amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - created_at
+      - id
+      - invoice
+      - invoice_number
+    PaymentMethodEnum:
+      enum:
+      - cash
+      - mpesa
+      - bank_transfer
+      type: string
+      description: |-
+        * `cash` - Cash
+        * `mpesa` - M-Pesa
+        * `bank_transfer` - Bank Transfer
+    PaymentStatusEnum:
+      enum:
+      - completed
+      - reversed
+      - refunded
+      type: string
+      description: |-
+        * `completed` - Completed
+        * `reversed` - Reversed
+        * `refunded` - Refunded
+    PriorityEnum:
+      enum:
+      - low
+      - normal
+      - high
+      - urgent
+      type: string
+      description: |-
+        * `low` - Low
+        * `normal` - Normal
+        * `high` - High
+        * `urgent` - Urgent
+    Quotation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+        branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        customer:
+          type: integer
+        customer_details:
+          allOf:
+          - $ref: '#/components/schemas/Customer'
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/QuotationStatusEnum'
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        tax:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        valid_until:
+          type: string
+          format: date
+          nullable: true
+        notes:
+          type: string
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by_email:
+          type: string
+          format: email
+          readOnly: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotationItem'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branch
+      - branch_details
+      - created_at
+      - created_by
+      - created_by_email
+      - customer
+      - customer_details
+      - id
+      - number
+      - subtotal
+      - total
+      - updated_at
+    QuotationItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        service:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          description: Snapshot description
+          maxLength: 255
+        quantity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        unit_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Price snapshot
+        discount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - description
+      - id
+      - total
+      - unit_price
+    QuotationStatusEnum:
+      enum:
+      - draft
+      - sent
+      - accepted
+      - rejected
+      - expired
+      - converted
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `sent` - Sent to Customer
+        * `accepted` - Accepted
+        * `rejected` - Rejected
+        * `expired` - Expired
+        * `converted` - Converted to Job
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          readOnly: true
+        branch:
+          type: integer
+          readOnly: true
+        branch_name:
+          type: string
+          readOnly: true
+        customer:
+          type: integer
+          readOnly: true
+        customer_name:
+          type: string
+          readOnly: true
+        payment:
+          type: integer
+          readOnly: true
+        payment_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        payment_method:
+          type: string
+          readOnly: true
+        payment_reference:
+          type: string
+          readOnly: true
+        invoice:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branch
+      - branch_name
+      - created_at
+      - created_by
+      - customer
+      - customer_name
+      - id
+      - invoice
+      - number
+      - payment
+      - payment_amount
+      - payment_method
+      - payment_reference
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          maxLength: 40
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+        is_system_role:
+          type: boolean
+      required:
+      - code
+      - id
+      - name
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        category_name:
+          type: string
+          readOnly: true
+        code:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 150
+        description:
+          type: string
+        unit:
+          type: string
+          description: Measurement unit e.g. sqm, m, pcs, sheet, hour
+          maxLength: 30
+        base_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          description: Base price in KES per unit
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - base_price
+      - category
+      - category_name
+      - code
+      - created_at
+      - id
+      - name
+      - unit
+      - updated_at
+    ServiceCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+        is_active:
+          type: boolean
+        services_count:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - services_count
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 25
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          readOnly: true
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        roles:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          readOnly: true
+        role_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+          readOnly: true
+        branch_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        default_branch:
+          type: integer
+          nullable: true
+        default_branch_details:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branches
+      - date_joined
+      - default_branch_details
+      - email
+      - id
+      - is_staff
+      - roles
+    UserCreateUpdate:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+          minLength: 8
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 25
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        role_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        branch_ids:
+          type: array
+          items:
+            type: integer
+            writeOnly: true
+          writeOnly: true
+        default_branch:
+          type: integer
+          nullable: true
+      required:
+      - email
+      - id
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_superuser:
+          type: boolean
+          readOnly: true
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        roles:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        role_details:
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+          readOnly: true
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+          readOnly: true
+        default_branch:
+          allOf:
+          - $ref: '#/components/schemas/Branch'
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - branches
+      - date_joined
+      - default_branch
+      - email
+      - first_name
+      - id
+      - is_active
+      - is_superuser
+      - last_name
+      - phone_number
+      - role_details
+      - roles
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

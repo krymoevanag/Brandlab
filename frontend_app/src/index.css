@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Google Fonts ────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+/* ── Base resets ─────────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "kern" 1, "liga" 1, "tnum" 1; /* tabular nums */
+  }
+
+  body {
+    @apply bg-brand-surface text-brand-text font-sans text-base;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Headings default to display font */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
+
+  /* Monospaced codes — job refs, invoice numbers */
+  .font-mono, code, pre {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── Component layer ─────────────────────────────────────────────────────── */
+@layer components {
+
+  /* Sidebar nav active indicator */
+  .nav-active-graphics {
+    @apply bg-brand-charcoalMid text-white;
+    border-left: 3px solid theme('colors.brand.cyan');
+  }
+  .nav-active-cnc {
+    @apply bg-brand-charcoalMid text-white;
+    border-left: 3px solid theme('colors.brand.orange');
+  }
+
+  /* Metric card */
+  .metric-card {
+    @apply bg-brand-card rounded-card border border-brand-border shadow-card
+           hover:shadow-cardHover transition-shadow duration-standard p-5;
+  }
+
+  /* Page heading (Space Grotesk) */
+  .page-title {
+    @apply font-display text-xl font-semibold text-brand-charcoal tracking-tight;
+  }
+
+  /* Status badge base */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5
+           rounded-badge text-2xs font-semibold border;
+  }
+
+  /* Primary action button */
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 px-4 py-2
+           bg-brand-cyanDeep hover:bg-brand-cyan text-white
+           rounded-btn text-xs font-semibold
+           shadow-sm transition-all duration-standard;
+  }
+
+  /* Secondary / outline button */
+  .btn-secondary {
+    @apply inline-flex items-center gap-1.5 px-4 py-2
+           bg-white hover:bg-brand-surface text-brand-text
+           border border-brand-border rounded-btn text-xs font-medium
+           shadow-input transition-all duration-standard;
+  }
+
+  /* Table header row */
+  .th-row {
+    @apply bg-brand-surface border-b border-brand-border
+           text-brand-muted text-2xs font-semibold uppercase tracking-wider;
+  }
+
+  /* Standard form input */
+  .form-input {
+    @apply w-full px-3 py-2 bg-brand-surface border border-brand-border
+           rounded-input text-sm text-brand-text placeholder:text-brand-muted
+           focus:outline-none focus:ring-2 focus:ring-brand-cyan/25
+           focus:border-brand-cyanDeep transition-all duration-standard
+           shadow-input;
+  }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: #F3F6F8; }
+::-webkit-scrollbar-thumb    { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
