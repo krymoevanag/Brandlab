@@ -8,6 +8,7 @@ interface BusinessUnitSwitcherProps {
   onChange: (unit: BusinessUnit) => void;
   variant?: "pill" | "dropdown";
   className?: string;
+  allowedUnits?: BusinessUnit[];
 }
 
 const UNIT_ICON_CLS: Record<BusinessUnit, string> = {
@@ -27,6 +28,7 @@ export const BusinessUnitSwitcher: React.FC<BusinessUnitSwitcherProps> = ({
   onChange,
   variant = "pill",
   className = "",
+  allowedUnits = ["all", "graphics", "cnc"],
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -62,7 +64,7 @@ export const BusinessUnitSwitcher: React.FC<BusinessUnitSwitcherProps> = ({
               aria-label="Close switcher"
             />
             <div className="absolute left-0 mt-1.5 w-60 rounded-card bg-white shadow-dialog ring-1 ring-black/5 z-50 py-1.5 animate-fade-in">
-              {(["all", "graphics", "cnc"] as BusinessUnit[]).map((unit) => {
+              {allowedUnits.map((unit) => {
                 const config = BUSINESS_UNITS[unit];
                 const isSelected = activeUnit === unit;
                 return (
@@ -94,7 +96,7 @@ export const BusinessUnitSwitcher: React.FC<BusinessUnitSwitcherProps> = ({
   // ── Pill variant ──────────────────────────────────────────────────────────
   return (
     <div className={`inline-flex p-0.5 bg-brand-surface rounded-btn border border-brand-border ${className}`}>
-      {(["all", "graphics", "cnc"] as BusinessUnit[]).map((unit) => {
+      {allowedUnits.map((unit) => {
         const config = BUSINESS_UNITS[unit];
         const isSelected = activeUnit === unit;
         return (

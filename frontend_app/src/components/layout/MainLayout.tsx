@@ -11,9 +11,11 @@ import { JobsPage } from "../../features/jobs/JobsPage";
 import { ExpensesPage } from "../../features/expenses/ExpensesPage";
 import { ReportsPage } from "../../features/reports/ReportsPage";
 import { AuditPage } from "../../features/audit/AuditPage";
+import { UsersPage } from "../../features/accounts/UsersPage";
 
 interface MainLayoutProps {
-  user: { email: string; role: string; branch: string };
+  user: { email: string; roles: string[]; branch: string };
+  token: string;
   onLogout: () => void;
 }
 
@@ -37,7 +39,9 @@ const ComingSoonPage: React.FC<{ tab: NavTab; branch: string; unit: string }> = 
   </div>
 );
 
-export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
+export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout }) => {
+  const canUseCnc = user.roles.includes("owner") || user.roles.includes("superadmin") || user.roles.includes("cnc_operator");
+  const allowedUnits: BusinessUnit[] = canUseCnc ? ["all", "graphics", "cnc"] : ["all", "graphics"];
   const [currentTab, setCurrentTab] = useState<NavTab>("dashboard");
   const [activeUnit, setActiveUnit] = useState<BusinessUnit>("all");
   const [currentBranch, setCurrentBranch] = useState<string>(user.branch || "NBI");
@@ -51,7 +55,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
             businessUnit={activeUnit}
             onBusinessUnitChange={setActiveUnit}
             branchCode={currentBranch}
-            userRole={user.role}
+            userRole={user.roles[0] || "staff"}
+            accessToken={token}
           />
         );
       case "customers":
@@ -68,6 +73,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
         return <ReportsPage />;
       case "audit":
         return <AuditPage />;
+      case "users":
+        return <UsersPage accessToken={token} />;
       default:
         return <ComingSoonPage tab={currentTab} branch={currentBranch} unit={activeUnit} />;
     }
@@ -81,6 +88,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
         onSelectTab={setCurrentTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        roles={user.roles}
       />
 
       {/* 2. Main content area */}
@@ -92,7 +100,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
           currentBranch={currentBranch}
           onBranchChange={setCurrentBranch}
           userEmail={user.email}
-          userRole={user.role}
+          userRole={user.roles[0] || "staff"}
+          allowedUnits={allowedUnits}
           onLogout={onLogout}
         />
 

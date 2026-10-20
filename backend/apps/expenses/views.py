@@ -6,7 +6,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.core.permissions import get_user_branches, user_is_owner, user_has_role
+from apps.core.permissions import get_user_branches, user_is_owner, user_has_role, RoleAccessPermission, user_within_approval_limit
 from apps.audit.utils import log_audit
 from .models import Expense
 from .serializers import ExpenseSerializer
@@ -21,7 +21,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     - Executive dashboard summary metrics
     """
     serializer_class = ExpenseSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "expenses.create", "retrieve": "expenses.create", "create": "expenses.create", "update": "expenses.create", "partial_update": "expenses.create", "destroy": "expenses.create", "approve_expense": "expenses.approve", "reject_expense": "expenses.approve", "mark_as_paid": "expenses.pay", "dashboard_summary": "expenses.create"}
+    role_access = {"GET": ["branch_manager", "finance_officer", "storekeeper"], "POST": ["branch_manager", "finance_officer", "storekeeper"], "PUT": ["branch_manager", "finance_officer"], "PATCH": ["branch_manager", "finance_officer"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "department", "category", "status", "payment_method", "job"]
     search_fields = ["expense_number", "supplier", "description", "notes"]
@@ -62,6 +64,12 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if not (user.is_superuser or user_is_owner(user) or user_has_role(user, ["branch_manager", "finance_officer"])):
             return Response(
                 {"error": "You do not have authorization to approve expenses."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not user_within_approval_limit(user, "expenses.approve", expense.amount, expense.branch):
+            return Response(
+                {"error": "This expense exceeds your configured approval limit."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 

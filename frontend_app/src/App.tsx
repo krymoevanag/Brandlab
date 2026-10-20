@@ -4,7 +4,7 @@ import { MainLayout } from "./components/layout/MainLayout";
 
 interface AuthUser {
   email: string;
-  role: string;
+  roles: string[];
   branch: string;
 }
 
@@ -26,7 +26,7 @@ export function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
-  return <MainLayout user={user} onLogout={handleLogout} />;
+  return <MainLayout user={user} token={token} onLogout={handleLogout} />;
 }
 
 export default App;

@@ -10,6 +10,7 @@ interface AppHeaderProps {
   onBranchChange: (branch: string) => void;
   userEmail: string;
   userRole: string;
+  allowedUnits: BusinessUnit[];
   onLogout: () => void;
 }
 
@@ -20,6 +21,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onBranchChange,
   userEmail,
   userRole,
+  allowedUnits,
   onLogout,
 }) => {
   const initials = userEmail.slice(0, 2).toUpperCase();
@@ -38,6 +40,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <BusinessUnitSwitcher
           activeUnit={activeUnit}
           onChange={onUnitChange}
+          allowedUnits={allowedUnits}
           variant="pill"
         />
       </div>

@@ -5,12 +5,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from apps.core.permissions import IsOwnerOrSuperAdmin
 from apps.audit.utils import log_audit
-from .models import User, Role
+from .models import BusinessUnit, User, Role
 from .serializers import (
     UserSerializer,
     UserCreateUpdateSerializer,
     UserProfileSerializer,
     RoleSerializer,
+    BusinessUnitSerializer,
 )
 
 
@@ -54,6 +55,12 @@ class RoleViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RoleSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering = ["name"]
+
+
+class BusinessUnitViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BusinessUnit.objects.filter(is_active=True)
+    serializer_class = BusinessUnitSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 
 class UserViewSet(viewsets.ModelViewSet):

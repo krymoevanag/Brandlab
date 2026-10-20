@@ -3,7 +3,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.core.permissions import get_user_branches, user_is_owner
+from apps.core.permissions import get_user_branches, user_is_owner, RoleAccessPermission
 from apps.audit.utils import log_audit
 from apps.jobs.models import Job, JobItem, JobStatusHistory, generate_job_number
 from apps.jobs.serializers import JobSerializer
@@ -19,7 +19,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
     - 1-step atomic conversion to Job.
     """
     serializer_class = QuotationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "quotations.view", "retrieve": "quotations.view", "create": "quotations.create", "update": "quotations.edit", "partial_update": "quotations.edit", "destroy": "quotations.delete", "convert_to_job": "jobs.create"}
+    role_access = {"GET": ["branch_manager", "sales_attendant", "designer", "cnc_operator"], "POST": ["branch_manager", "sales_attendant"], "PUT": ["branch_manager", "sales_attendant"], "PATCH": ["branch_manager", "sales_attendant"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "customer", "status"]
     search_fields = ["number", "customer__name", "customer__phone"]

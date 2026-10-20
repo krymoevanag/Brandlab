@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.core.permissions import get_user_branches, user_is_owner
+from apps.core.permissions import get_user_branches, user_is_owner, RoleAccessPermission
 from apps.audit.utils import log_audit
 from .models import Job, JobItem, JobStatusHistory
 from .serializers import JobSerializer, JobStatusHistorySerializer
@@ -16,7 +16,9 @@ class JobViewSet(viewsets.ModelViewSet):
     - Status transitions with history and audit logs.
     """
     serializer_class = JobSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "jobs.view", "retrieve": "jobs.view", "create": "jobs.create", "update": "jobs.edit", "partial_update": "jobs.edit", "destroy": "jobs.delete", "update_status": "jobs.edit"}
+    role_access = {"GET": ["branch_manager", "sales_attendant", "designer", "cnc_operator"], "POST": ["branch_manager", "sales_attendant"], "PUT": ["branch_manager", "cnc_operator"], "PATCH": ["branch_manager", "cnc_operator"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "customer", "status", "priority"]
     search_fields = ["number", "customer__name", "customer__phone", "notes"]

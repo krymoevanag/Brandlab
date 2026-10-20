@@ -24,10 +24,11 @@ The two businesses share the same login system and application, while staff perm
 9. [Set up PostgreSQL](#set-up-postgresql)
 10. [Run the whole system](#run-the-whole-system)
 11. [API documentation](#api-documentation)
-12. [Demo accounts](#demo-accounts)
+12. [Development accounts](#development-accounts)
 13. [System features](#system-features)
 14. [Staff roles and permissions](#staff-roles-and-permissions)
-15. [Contributing to the project](#contributing-to-the-project)
+15. [Access-control setup](#access-control-setup)
+16. [Contributing to the project](#contributing-to-the-project)
 
 ## How the system works
 
@@ -127,7 +128,7 @@ Brandlab/
 │   │   └── asgi.py                  # ASGI entry point
 │   ├── apps/
 │   │   ├── core/                    # Shared models, permissions and utilities
-│   │   ├── accounts/                # Users, roles and login
+│   │   ├── accounts/                # Users, roles and access management
 │   │   ├── branches/                # Nairobi and Meru branches
 │   │   ├── audit/                   # Audit history
 │   │   ├── customers/               # Customer records
@@ -252,11 +253,14 @@ Run:
 python manage.py seed_initial_data
 ```
 
-According to the project setup, this command creates:
+According to the project setup, this command creates or updates:
 
 - The Nairobi (`NBI`) and Meru (`MER`) branches.
-- The roles `owner`, `branch_manager`, `finance_officer`, `sales_attendant`, `designer`, `cnc_operator`, and `storekeeper`.
-- A default owner account. The command prints the account details in the terminal.
+- The roles `owner`, `branch_manager`, `finance_officer`, `sales_attendant`, `designer`, `cnc_operator`, `storekeeper`, and `auditor`.
+- The Graphics and CNC business units.
+- The granular permission catalogue and role-to-permission assignments.
+
+The command does not create staff passwords. Create the first administrator with `python manage.py createsuperuser`, then create ordinary staff accounts from Django Admin or the owner's **Staff & Access** screen.
 
 ### 7. Create a Django administrator account (optional)
 
@@ -469,23 +473,15 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 
 The exact data and permissions available from an endpoint depend on the backend implementation and the logged-in user's role.
 
-## Demo accounts
+## Development accounts
 
-The `seed_initial_data` command is documented as creating the following development accounts:
+No shared passwords or automatic demo accounts are created by the seed command. Create a local owner account with:
 
-| Role | Email | Password |
-|---|---|---|
-| Owner / Super Admin | `owner@atozgraphics.co.ke` | `Password123!` |
-| Nairobi Branch Manager | `mgr.nbi@atozgraphics.co.ke` | `Password123!` |
-| Meru Branch Manager | `mgr.mer@atozgraphics.co.ke` | `Password123!` |
-| Sales Attendant | `sales.nbi@atozgraphics.co.ke` | `Password123!` |
-| Designer | `designer@atozgraphics.co.ke` | `Password123!` |
+```bash
+python manage.py createsuperuser
+```
 
-The login page also includes a **Demo Staff Roles** panel for quickly filling in demo login details during development.
-
-The README says that if Django is unavailable, the frontend can switch to a demo mode and identify a role from the email pattern. For example, `mgr` identifies a branch manager, `sales` identifies a sales attendant, and `designer` identifies a designer.
-
-> **Security reminder:** These are development demo credentials, not safe production credentials. Change or disable demo accounts before deploying the system publicly.
+After logging in, use Django Admin or the owner-only **Staff & Access** screen to create staff accounts and assign their roles, branches, and business units. Never reuse development passwords in production.
 
 ## System features
 
@@ -501,27 +497,56 @@ The README marks the following modules as complete or planned. Actual availabili
 | Expenses | Complete | Supports expense approval and summaries by category. |
 | Reports | Complete | Displays key figures, a six-month chart, branch summaries, and top-customer information. |
 | Audit logs | Complete | Keeps a history of recorded actions for review. |
-| CNC production | Planned | Intended to manage machine run sheets and assign operators. |
+| CNC production | Protected dashboard | Branch-scoped production metrics and jobs are available to authorized CNC operators and owners. |
 | Materials and stock | Planned | Intended to track inventory, low-stock alerts, and transfers between branches. |
 | Design studio | Planned | Intended to support artwork uploads, proofing, and approval. |
 
 ## Staff roles and permissions
 
-Access depends on the staff member's role. The table below reflects the permissions listed in the original README.
+Access is enforced by the backend using roles, granular permissions, branches, and business units. The frontend hides unavailable modules, but the API remains the security boundary.
 
-| Permission | Owner | Branch Manager | Finance Officer | Sales Attendant | Designer | CNC Operator |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| View all branches | Yes | No | No | No | No | No |
-| Manage users | Yes | No | No | No | No | No |
-| Approve expenses | Yes | Yes | Yes | No | No | No |
-| Create quotations | Yes | Yes | No | Yes | No | No |
-| Move a job to its next status | Yes | Yes | No | Yes | Yes | Yes |
-| View financial reports | Yes | Yes | Yes | No | No | No |
-| Issue invoices | Yes | Yes | Yes | No | No | No |
-| Record payments | Yes | Yes | Yes | Yes | No | No |
-| View audit history | Yes | Yes | Yes | No | No | No |
+| Permission | Owner | Branch Manager | Finance Officer | Sales Attendant | Designer | CNC Operator | Storekeeper | Auditor |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Manage users and roles | Yes | No | No | No | No | No | No | No |
+| View customers and jobs | All | Branch | — | Yes | Assigned | Assigned | — | Read-only |
+| Create quotations | Yes | Yes | No | Yes | No | No | No | No |
+| Submit artwork | Yes | Approve | No | No | Yes | No | No | No |
+| Update production | Yes | Monitor | No | No | No | Yes | Usage only | No |
+| Verify payments | Yes | Limited | Yes | Submit evidence | No | No | No | No |
+| Approve expenses | Yes | Delegated | Delegated | No | No | No | Request | No |
+| Manage inventory | Yes | Monitor | No | No | No | Usage | Yes | Read-only |
+| View audit logs | Yes | Scoped | Financial | No | No | No | Stock | Yes |
 
-Permissions are intended to be checked by the backend, using Django REST Framework permission classes. Hiding a button in the website is not enough to protect an action; the API must also reject requests from users who lack permission.
+Each user also receives explicit branch and business-unit scope. An owner or superuser is unrestricted; other users only receive records and modules allowed by both their permissions and assigned scope.
+
+## Access-control setup
+
+The access-control models are defined in `backend/apps/accounts/models.py`:
+
+- `User`: authentication, assigned roles, branches, and business units.
+- `Role`: reusable staff role.
+- `Permission`: granular action such as `payments.verify` or `inventory.adjust`.
+- `ApprovalLimit`: optional monetary ceiling for a role, action, and branch.
+- `BusinessUnit`: `graphics` or `cnc` access scope.
+
+Useful endpoints include:
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/roles/` | List roles and their permission codes. |
+| `GET` | `/api/v1/business-units/` | List assignable business units. |
+| `GET/POST` | `/api/v1/users/` | Owner-only staff management. |
+| `GET` | `/api/v1/core/cnc-dashboard/` | Protected, branch-scoped CNC dashboard data. |
+
+For local setup, run:
+
+```bash
+python manage.py migrate
+python manage.py seed_initial_data
+python manage.py createsuperuser
+```
+
+Then sign in as the owner and create staff accounts with the minimum role, branch, and business-unit scope required for their work.
 
 ## Contributing to the project
 

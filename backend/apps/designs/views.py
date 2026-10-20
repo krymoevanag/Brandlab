@@ -3,7 +3,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.core.permissions import get_user_branches, user_is_owner, user_has_role
+from apps.core.permissions import get_user_branches, user_is_owner, user_has_role, RoleAccessPermission
 from apps.audit.utils import log_audit
 from .models import DesignAssignment, DesignFile, DesignComment
 from .serializers import (
@@ -21,7 +21,9 @@ class DesignAssignmentViewSet(viewsets.ModelViewSet):
     - Authorized approval gate
     """
     serializer_class = DesignAssignmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "designs.view", "retrieve": "designs.view", "create": "designs.submit", "update": "designs.submit", "partial_update": "designs.submit", "destroy": "designs.submit"}
+    role_access = {"GET": ["branch_manager", "sales_attendant", "designer"], "POST": ["branch_manager", "designer"], "PUT": ["branch_manager", "designer"], "PATCH": ["branch_manager", "designer"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["job", "designer", "status"]
     search_fields = ["job__number", "designer__email", "notes"]

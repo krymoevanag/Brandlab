@@ -1,13 +1,20 @@
 from rest_framework import serializers
 from apps.branches.serializers import BranchSerializer
-from .models import User, Role
+from .models import BusinessUnit, User, Role
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    permissions = serializers.SlugRelatedField(many=True, read_only=True, slug_field="code")
     class Meta:
         model = Role
-        fields = ["id", "code", "name", "description", "is_system_role"]
+        fields = ["id", "code", "name", "description", "is_system_role", "permissions"]
         read_only_fields = ["id"]
+
+
+class BusinessUnitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessUnit
+        fields = ["id", "code", "name", "is_active"]
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -27,6 +34,14 @@ class UserSerializer(serializers.ModelSerializer):
         required=False,
         source="branches",
     )
+    business_unit_ids = serializers.PrimaryKeyRelatedField(
+        queryset=BusinessUnit.objects.filter(is_active=True),
+        many=True,
+        write_only=True,
+        required=False,
+        source="business_units",
+    )
+    business_units = BusinessUnitSerializer(many=True, read_only=True)
     default_branch_details = BranchSerializer(source="default_branch", read_only=True)
 
     class Meta:
@@ -43,6 +58,8 @@ class UserSerializer(serializers.ModelSerializer):
             "role_ids",
             "branches",
             "branch_ids",
+            "business_unit_ids",
+            "business_units",
             "default_branch",
             "default_branch_details",
             "date_joined",
@@ -66,6 +83,13 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
         required=False,
         source="branches",
     )
+    business_unit_ids = serializers.PrimaryKeyRelatedField(
+        queryset=BusinessUnit.objects.filter(is_active=True),
+        many=True,
+        write_only=True,
+        required=False,
+        source="business_units",
+    )
 
     class Meta:
         model = User
@@ -79,6 +103,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             "is_active",
             "role_ids",
             "branch_ids",
+            "business_unit_ids",
             "default_branch",
         ]
 
@@ -86,6 +111,7 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password", None)
         roles = validated_data.pop("roles", [])
         branches = validated_data.pop("branches", [])
+        business_units = validated_data.pop("business_units", [])
         
         user = User.objects.create_user(**validated_data)
         if password:
@@ -95,12 +121,15 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             user.roles.set(roles)
         if branches:
             user.branches.set(branches)
+        if business_units:
+            user.business_units.set(business_units)
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
         roles = validated_data.pop("roles", None)
         branches = validated_data.pop("branches", None)
+        business_units = validated_data.pop("business_units", None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -113,6 +142,8 @@ class UserCreateUpdateSerializer(serializers.ModelSerializer):
             instance.roles.set(roles)
         if branches is not None:
             instance.branches.set(branches)
+        if business_units is not None:
+            instance.business_units.set(business_units)
         return instance
 
 
@@ -120,6 +151,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     roles = serializers.SlugRelatedField(many=True, read_only=True, slug_field="code")
     role_details = RoleSerializer(source="roles", many=True, read_only=True)
     branches = BranchSerializer(many=True, read_only=True)
+    business_units = serializers.SlugRelatedField(many=True, read_only=True, slug_field="code")
+    business_unit_details = BusinessUnitSerializer(many=True, read_only=True, source="business_units")
     default_branch = BranchSerializer(read_only=True)
 
     class Meta:
@@ -135,6 +168,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "roles",
             "role_details",
             "branches",
+            "business_units",
+            "business_unit_details",
             "default_branch",
             "date_joined",
         ]

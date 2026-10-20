@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { BusinessUnit } from "../../types/business";
 import { BUSINESS_UNITS } from "../../types/business";
 import { BrandHeader } from "../../components/branding/BrandHeader";
@@ -17,17 +17,50 @@ interface DashboardPageProps {
   onBusinessUnitChange?: (unit: BusinessUnit) => void;
   branchCode: string;
   userRole?: string;
+  accessToken?: string;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   businessUnit,
   branchCode,
+  accessToken,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<"all" | "pending" | "completed">("all");
+  const [liveCncJobs, setLiveCncJobs] = useState<any[] | null>(null);
+  const [cncMetrics, setCncMetrics] = useState({ active_jobs: 0, quality_check: 0, ready_for_delivery: 0 });
+
+  useEffect(() => {
+    if (businessUnit !== "cnc" || !accessToken) {
+      setLiveCncJobs(null);
+      return;
+    }
+    fetch("http://127.0.0.1:8000/api/v1/core/cnc-dashboard/", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("CNC dashboard access denied.");
+        return response.json();
+      })
+      .then((data) => {
+        setCncMetrics({ active_jobs: data.active_jobs, quality_check: data.quality_check, ready_for_delivery: data.ready_for_delivery });
+        setLiveCncJobs(data.jobs.map((job: any) => ({
+          id: job.number,
+          customer: job.customer,
+          unit: "cnc",
+          description: `${job.priority} priority CNC production job`,
+          amount: `KES ${Number(job.total).toLocaleString()}`,
+          status: job.status,
+          statusLabel: job.status.replaceAll("_", " "),
+          dueDate: job.due_at ? new Date(job.due_at).toLocaleDateString() : "Not scheduled",
+          badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
+        })));
+      })
+      .catch(() => setLiveCncJobs([]));
+  }, [businessUnit, accessToken]);
 
   const orders = [
     {
-      id: "NBI-JOB-2026-0042",
+      id: "AZNr-JOB-2026-0042",
       customer: "Safaricom PLC",
       unit: "graphics",
       description: "Fleet Branding & Reflective Vinyl Wraps",
@@ -38,7 +71,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
     },
     {
-      id: "NBI-JOB-2026-0043",
+      id: "AZNr-JOB-2026-0043",
       customer: "Apex Architects Nairobi",
       unit: "cnc",
       description: "Brass Architectural Lettering & 3D Router Cutting",
@@ -49,7 +82,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
     },
     {
-      id: "MER-JOB-2026-0019",
+      id: "AZMr-JOB-2026-0019",
       customer: "Meru Greens Ltd",
       unit: "graphics",
       description: "Rollup Banners & UV Flatbed Signage",
@@ -60,7 +93,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
     },
     {
-      id: "NBI-JOB-2026-0044",
+      id: "AZNr-JOB-2026-0044",
       customer: "KenGen Corporate Office",
       unit: "cnc",
       description: "Acrylic Machine Guard Shields & Laser Engraving",
@@ -71,7 +104,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
     },
     {
-      id: "NBI-JOB-2026-0045",
+      id: "AZNr-JOB-2026-0045",
       customer: "Java House Kenya",
       unit: "graphics",
       description: "Custom Engraved Wooden Coasters & Gift Boxes",
@@ -84,7 +117,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   ];
 
   // Filter orders by active business unit
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = (businessUnit === "cnc" && liveCncJobs ? liveCncJobs : orders).filter((o) => {
     if (businessUnit === "all") return true;
     return o.unit === businessUnit;
   });
@@ -132,10 +165,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-xl font-bold text-slate-900">
-              {businessUnit === "cnc" ? "8 Active Cut Runs" : businessUnit === "graphics" ? "14 Print Jobs" : "22 Total Jobs"}
+              {businessUnit === "cnc" ? `${cncMetrics.active_jobs} Active CNC Jobs` : businessUnit === "graphics" ? "14 Print Jobs" : "22 Total Jobs"}
             </h3>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              {businessUnit === "cnc" ? "3 Machines Running · 0 Downtime" : "6 Awaiting Approval · 8 In Press"}
+              {businessUnit === "cnc" ? `${cncMetrics.quality_check} Quality Checks · ${cncMetrics.ready_for_delivery} Ready` : "6 Awaiting Approval · 8 In Press"}
             </p>
           </div>
         </div>

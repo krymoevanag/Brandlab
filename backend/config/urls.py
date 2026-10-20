@@ -15,6 +15,7 @@ from apps.accounts.views import (
     UserProfileView,
     UserViewSet,
     RoleViewSet,
+    BusinessUnitViewSet,
 )
 from apps.branches.views import BranchViewSet
 from apps.audit.views import AuditLogViewSet
@@ -30,6 +31,7 @@ router = DefaultRouter()
 router.register(r"branches", BranchViewSet, basename="branch")
 router.register(r"users", UserViewSet, basename="user")
 router.register(r"roles", RoleViewSet, basename="role")
+router.register(r"business-units", BusinessUnitViewSet, basename="business-unit")
 router.register(r"audit-logs", AuditLogViewSet, basename="audit-log")
 router.register(r"customers", CustomerViewSet, basename="customer")
 router.register(r"service-categories", ServiceCategoryViewSet, basename="service-category")
@@ -45,6 +47,7 @@ router.register(r"expenses", ExpenseViewSet, basename="expense")
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", include("apps.core.urls")),
+    path("api/v1/core/", include("apps.core.urls")),
     
     # Authentication endpoints
     path("api/v1/auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),

@@ -30,7 +30,8 @@ export type NavTab =
   | "expenses"
   | "payments"
   | "reports"
-  | "audit";
+  | "audit"
+  | "users";
 
 interface AppSidebarProps {
   currentTab: NavTab;
@@ -38,6 +39,7 @@ interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   activeUnit?: BusinessUnit;
+  roles: string[];
 }
 
 interface NavItem {
@@ -53,7 +55,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   collapsed,
   onToggleCollapse,
   activeUnit = "all",
+  roles,
 }) => {
+  const can = (allowed: string[]) =>
+    roles.includes("owner") || roles.includes("superadmin") || allowed.some((role) => roles.includes(role));
   // Active accent changes per business unit
   const accentBorder =
     activeUnit === "cnc" ? "border-l-cnc" : "border-l-graphics";
@@ -64,23 +69,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   const businessNav: NavItem[] = [
     { id: "dashboard",  label: "Dashboard",            icon: LayoutDashboard },
-    { id: "customers",  label: "Customers",            icon: Users },
-    { id: "quotations", label: "Orders & Quotations",  icon: FileText },
-    { id: "invoices",   label: "Invoices & Receipts",  icon: Receipt },
+    ...(can(["owner"]) ? [{ id: "users" as NavTab, label: "Staff & Access", icon: Users }] : []),
+    ...(can(["branch_manager", "sales_attendant", "designer", "cnc_operator"]) ? [{ id: "customers" as NavTab, label: "Customers", icon: Users }] : []),
+    ...(can(["branch_manager", "sales_attendant", "designer", "cnc_operator"]) ? [{ id: "quotations" as NavTab, label: "Orders & Quotations", icon: FileText }] : []),
+    ...(can(["branch_manager", "finance_officer"]) ? [{ id: "invoices" as NavTab, label: "Invoices & Receipts", icon: Receipt }] : []),
   ];
 
   const productionNav: NavItem[] = [
-    { id: "jobs",      label: "Job Cards",         icon: Layers,  badge: "8" },
-    { id: "cnc",       label: "CNC Production",    icon: Cpu },
-    { id: "printing",  label: "Printing & Branding", icon: Printer },
-    { id: "materials", label: "Materials & Stock", icon: Package },
+    ...(can(["branch_manager", "sales_attendant", "designer", "cnc_operator"]) ? [{ id: "jobs" as NavTab, label: "Job Cards", icon: Layers, badge: "8" }] : []),
+    ...(can(["cnc_operator"]) ? [{ id: "cnc" as NavTab, label: "CNC Production", icon: Cpu }] : []),
+    ...(can(["branch_manager", "designer"]) ? [{ id: "printing" as NavTab, label: "Printing & Branding", icon: Printer }] : []),
+    ...(can(["branch_manager", "storekeeper", "cnc_operator"]) ? [{ id: "materials" as NavTab, label: "Materials & Stock", icon: Package }] : []),
   ];
 
   const financeNav: NavItem[] = [
-    { id: "expenses", label: "Expenses",   icon: Wallet,    badge: "3" },
-    { id: "payments", label: "Payments",   icon: CreditCard },
-    { id: "reports",  label: "Reports",    icon: BarChart3 },
-    { id: "audit",    label: "Audit Logs", icon: ShieldCheck },
+    ...(can(["branch_manager", "finance_officer", "storekeeper"]) ? [{ id: "expenses" as NavTab, label: "Expenses", icon: Wallet, badge: "3" }] : []),
+    ...(can(["branch_manager", "finance_officer"]) ? [{ id: "payments" as NavTab, label: "Payments", icon: CreditCard }] : []),
+    ...(can(["branch_manager", "finance_officer"]) ? [{ id: "reports" as NavTab, label: "Reports", icon: BarChart3 }] : []),
+    ...(can(["owner"]) ? [{ id: "audit" as NavTab, label: "Audit Logs", icon: ShieldCheck }] : []),
   ];
 
   const renderNavGroup = (title: string, items: NavItem[]) => (

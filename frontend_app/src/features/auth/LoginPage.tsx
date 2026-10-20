@@ -4,7 +4,7 @@ import cncLogo from "../../assets/logos/az-cnc-services.jpg";
 import { Lock, Mail, MapPin, ArrowRight, ShieldCheck } from "lucide-react";
 
 interface LoginPageProps {
-  onLoginSuccess: (token: string, user: { email: string; role: string; branch: string }) => void;
+  onLoginSuccess: (token: string, user: { email: string; roles: string[]; branch: string }) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
@@ -32,22 +32,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         throw new Error(data.error?.message || data.detail || "Authentication failed.");
       }
 
-      const role = data.user?.roles?.[0] || "owner";
+      const roles = Array.isArray(data.user?.roles) ? data.user.roles : [];
       onLoginSuccess(data.access, {
         email: data.user.email,
-        role: typeof role === "string" ? role : role.code || "staff",
-        branch,
+        roles,
+        branch: data.user.default_branch?.code || branch,
       });
     } catch (err: any) {
-      // Demo fallback when backend is not running
-      console.warn("Backend offline — activating demo mode:", err.message);
-      let detectedRole = "owner";
-      if (email.includes("mgr"))      detectedRole = "branch_manager";
-      if (email.includes("sales"))    detectedRole = "sales_attendant";
-      if (email.includes("designer")) detectedRole = "designer";
-      if (email.includes("cnc"))      detectedRole = "cnc_operator";
-
-      onLoginSuccess("demo-token-jwt", { email, role: detectedRole, branch });
+      setError(err.message || "Authentication failed. Start the backend and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -210,7 +202,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           <div className="mt-5 pt-4 border-t border-brand-border">
             <div className="flex items-center justify-between mb-2">
               <span className="text-2xs font-bold uppercase tracking-wider text-brand-muted">
-                Demo Staff Roles
+                Development Accounts
               </span>
               <span className="text-2xs text-brand-muted">Click to fill</span>
             </div>

@@ -4,7 +4,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from apps.core.permissions import get_user_branches, user_is_owner, user_has_role
+from apps.core.permissions import get_user_branches, user_is_owner, user_has_role, RoleAccessPermission, user_within_approval_limit
 from apps.audit.utils import log_audit
 from apps.jobs.models import Job
 from .models import (
@@ -29,7 +29,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     - Balance tracking linked to payment allocations
     """
     serializer_class = InvoiceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "finance.view", "retrieve": "finance.view", "create": "finance.view", "update": "finance.view", "partial_update": "finance.view", "destroy": "finance.view", "generate_from_job": "finance.view"}
+    role_access = {"GET": ["branch_manager", "finance_officer"], "POST": ["branch_manager", "finance_officer"], "PUT": ["branch_manager", "finance_officer"], "PATCH": ["branch_manager", "finance_officer"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "customer", "job", "status"]
     search_fields = ["number", "customer__name", "customer__phone"]
@@ -126,7 +128,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
     - Documented reversal workflow
     """
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "finance.view", "retrieve": "finance.view", "create": "payments.verify", "update": "payments.verify", "partial_update": "payments.verify", "destroy": "payments.verify", "reverse_payment": "payments.reverse"}
+    role_access = {"GET": ["branch_manager", "finance_officer"], "POST": ["branch_manager", "finance_officer"], "PUT": ["branch_manager", "finance_officer"], "PATCH": ["branch_manager", "finance_officer"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "customer", "method", "status"]
     search_fields = ["reference", "idempotency_key", "customer__name"]
@@ -232,6 +236,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        if not user_within_approval_limit(user, "payments.reverse", payment.amount, payment.branch):
+            return Response(
+                {"error": "This payment reversal exceeds your configured approval limit."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if payment.status != "completed":
             return Response(
                 {"error": f"Payment is already {payment.status} and cannot be reversed."},
@@ -271,7 +281,9 @@ class ReceiptViewSet(viewsets.ReadOnlyModelViewSet):
     Separately numbered from invoices, immutable payment proof.
     """
     serializer_class = ReceiptSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
+    permission_access = {"list": "finance.view", "retrieve": "finance.view"}
+    role_access = {"GET": ["branch_manager", "finance_officer"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["branch", "customer"]
     search_fields = ["number", "customer__name", "payment__reference"]

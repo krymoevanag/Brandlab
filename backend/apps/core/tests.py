@@ -2,7 +2,7 @@ from decimal import Decimal
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from apps.accounts.models import User, Role
+from apps.accounts.models import Permission, User, Role
 from apps.branches.models import Branch
 from apps.customers.models import Customer
 from apps.services.models import ServiceCategory, Service
@@ -26,6 +26,18 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.role_finance = Role.objects.create(code="finance_officer", name="Finance Officer")
         self.role_sales = Role.objects.create(code="sales_attendant", name="Sales Attendant")
         self.role_designer = Role.objects.create(code="designer", name="Designer")
+
+        # Explicit permissions used by the role-gated API tests.
+        permission_codes = [
+            "quotations.view", "quotations.create", "quotations.edit", "jobs.create",
+            "finance.view", "payments.verify", "expenses.create", "expenses.approve", "expenses.pay",
+        ]
+        permissions_by_code = {
+            code: Permission.objects.create(code=code, name=code.replace(".", " "))
+            for code in permission_codes
+        }
+        self.role_manager.permissions.set(permissions_by_code.values())
+        self.role_sales.permissions.set([permissions_by_code["quotations.view"]])
 
         # 3. Users
         # Owner (All branches)
@@ -117,7 +129,7 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
         quote_id = create_resp.data["id"]
         quote_number = create_resp.data["number"]
-        self.assertTrue(quote_number.startswith("NBI-QT-"))
+        self.assertTrue(quote_number.startswith("AZNr-QT-"))
         # 10 * 1200 - 500 = 11500
         self.assertEqual(Decimal(str(create_resp.data["total"])), Decimal("11500.00"))
 
@@ -125,7 +137,7 @@ class AtoZBusinessSystemAPITests(APITestCase):
         conv_resp = self.client.post(f"/api/v1/quotations/{quote_id}/convert-to-job/")
         self.assertEqual(conv_resp.status_code, status.HTTP_201_CREATED)
         job_number = conv_resp.data["number"]
-        self.assertTrue(job_number.startswith("NBI-JOB-"))
+        self.assertTrue(job_number.startswith("AZNr-JOB-"))
         self.assertEqual(Decimal(str(conv_resp.data["total"])), Decimal("11500.00"))
 
         # Verify snapshot pricing remains intact even if catalogue base_price changes
@@ -192,7 +204,7 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.assertEqual(pay_resp.status_code, status.HTTP_201_CREATED)
         self.assertIn("receipt", pay_resp.data)
         receipt_num = pay_resp.data["receipt"]["number"]
-        self.assertTrue(receipt_num.startswith("NBI-REC-"))
+        self.assertTrue(receipt_num.startswith("AZNr-REC-"))
         self.assertNotEqual(receipt_num, invoice.number)
 
         # 2. Check invoice balance updated
@@ -224,7 +236,7 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.assertEqual(exp_resp.status_code, status.HTTP_201_CREATED)
         exp_id = exp_resp.data["id"]
         exp_num = exp_resp.data["expense_number"]
-        self.assertTrue(exp_num.startswith("NBI-EXP-"))
+        self.assertTrue(exp_num.startswith("AZNr-EXP-"))
 
         # 2. Self-approval attempt must fail
         self_appr = self.client.post(f"/api/v1/expenses/{exp_id}/approve/")
@@ -252,3 +264,40 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.assertEqual(summary_resp.status_code, status.HTTP_200_OK)
         self.assertIn("expenses_this_month", summary_resp.data)
         self.assertIn("paid_this_month", summary_resp.data)
+
+    def test_06_branch_naming_prefixes_nairobi_and_meru(self):
+        """Verify Nairobi generates AZNr-* and Meru generates AZMr-* across document numbers."""
+        from apps.jobs.models import generate_job_number
+        from apps.quotations.models import generate_quotation_number
+        from apps.finance.models import generate_invoice_number, generate_receipt_number
+        from apps.expenses.models import generate_expense_number
+
+        # Nairobi tests (NBI -> AZNr)
+        self.assertTrue(generate_job_number("NBI").startswith("AZNr-JOB-"))
+        self.assertTrue(generate_quotation_number("NBI").startswith("AZNr-QT-"))
+        self.assertTrue(generate_invoice_number("NBI").startswith("AZNr-INV-"))
+        self.assertTrue(generate_receipt_number("NBI").startswith("AZNr-REC-"))
+        self.assertTrue(generate_expense_number("NBI").startswith("AZNr-EXP-"))
+
+        # Meru tests (MER -> AZMr)
+        self.assertTrue(generate_job_number("MER").startswith("AZMr-JOB-"))
+        self.assertTrue(generate_quotation_number("MER").startswith("AZMr-QT-"))
+        self.assertTrue(generate_invoice_number("MER").startswith("AZMr-INV-"))
+        self.assertTrue(generate_receipt_number("MER").startswith("AZMr-REC-"))
+        self.assertTrue(generate_expense_number("MER").startswith("AZMr-EXP-"))
+
+    def test_07_cnc_dashboard_is_role_protected(self):
+        """Designers and managers cannot access CNC production data."""
+        url = "/api/v1/core/cnc-dashboard/"
+
+        self.client.force_authenticate(user=self.user_designer)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+
+        cnc_role = Role.objects.create(code="cnc_operator", name="CNC Operator")
+        cnc_user = User.objects.create_user(email="cnc@atozgraphics.co.ke", password="Password123!")
+        cnc_user.roles.add(cnc_role)
+        self.client.force_authenticate(user=cnc_user)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
