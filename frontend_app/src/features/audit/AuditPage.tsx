@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShieldCheck, Search, Eye, Filter } from "lucide-react";
+import { ShieldCheck, Search } from "lucide-react";
 
 type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "APPROVE" | "REJECT" | "STATUS_CHANGE";
 
@@ -29,9 +29,9 @@ const ACTION_CONFIG: Record<AuditAction, { cls: string; label: string }> = {
 
 const DEMO_AUDIT: AuditEntry[] = [
   { id: 101, timestamp: "2026-10-19 10:42:08", user: "owner@atozgraphics.co.ke", role: "Owner", action: "APPROVE", entity: "Expense", entityId: "EXP-0039", branch: "NBI", ipAddress: "192.168.1.10", summary: "Approved electricity bill expense KES 14,800" },
-  { id: 100, timestamp: "2026-10-19 09:31:55", user: "mgr.nbi@atozgraphics.co.ke", role: "Branch Manager", action: "STATUS_CHANGE", entity: "Job", entityId: "NBI-JOB-2026-0042", branch: "NBI", ipAddress: "192.168.1.14", summary: "Job status changed: design_approved → in_production" },
+  { id: 100, timestamp: "2026-10-19 09:31:55", user: "mgr.nbi@atozgraphics.co.ke", role: "Branch Manager", action: "STATUS_CHANGE", entity: "Job", entityId: "AZNr-JOB-2026-0042", branch: "NBI", ipAddress: "192.168.1.14", summary: "Job status changed: design_approved → in_production" },
   { id: 99, timestamp: "2026-10-19 09:15:22", user: "sales.nbi@atozgraphics.co.ke", role: "Sales Attendant", action: "CREATE", entity: "Quotation", entityId: "QUO-2026-0088", branch: "NBI", ipAddress: "192.168.1.21", summary: "Created new quotation for Safaricom PLC — KES 280,000" },
-  { id: 98, timestamp: "2026-10-18 16:47:11", user: "designer@atozgraphics.co.ke", role: "Designer", action: "UPDATE", entity: "Job", entityId: "NBI-JOB-2026-0043", branch: "NBI", ipAddress: "192.168.1.18", summary: "Design proof uploaded and approved by designer" },
+  { id: 98, timestamp: "2026-10-18 16:47:11", user: "designer@atozgraphics.co.ke", role: "Designer", action: "UPDATE", entity: "Job", entityId: "AZNr-JOB-2026-0043", branch: "NBI", ipAddress: "192.168.1.18", summary: "Design proof uploaded and approved by designer" },
   { id: 97, timestamp: "2026-10-18 15:30:00", user: "owner@atozgraphics.co.ke", role: "Owner", action: "CREATE", entity: "User", entityId: "USR-015", branch: "NBI", ipAddress: "192.168.1.10", summary: "New staff account created: alice.nbi@atozgraphics.co.ke (Sales)" },
   { id: 96, timestamp: "2026-10-18 14:10:43", user: "mgr.mer@atozgraphics.co.ke", role: "Branch Manager", action: "APPROVE", entity: "Expense", entityId: "EXP-0038", branch: "MER", ipAddress: "10.0.0.5", summary: "Approved transport expense KES 8,600 (Meru–Nairobi)" },
   { id: 95, timestamp: "2026-10-18 11:55:02", user: "sales.mer@atozgraphics.co.ke", role: "Sales Attendant", action: "CREATE", entity: "Customer", entityId: "CUST-048", branch: "MER", ipAddress: "10.0.0.12", summary: "Registered new customer: Meru Greens Ltd (Corporate)" },
@@ -68,7 +68,6 @@ export const AuditPage: React.FC = () => {
       <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
         {(["all", "CREATE", "UPDATE", "STATUS_CHANGE", "APPROVE", "REJECT", "LOGIN", "DELETE"] as const).map((a) => {
           const count = a === "all" ? DEMO_AUDIT.length : DEMO_AUDIT.filter((e) => e.action === a).length;
-          const cfg = a === "all" ? null : ACTION_CONFIG[a as AuditAction];
           return (
             <button
               key={a}

@@ -6,9 +6,7 @@ import {
   Download,
   Printer,
   Cpu,
-  Calendar,
   DollarSign,
-  Target,
   Activity,
 } from "lucide-react";
 
@@ -144,7 +142,6 @@ export const ReportsPage: React.FC = () => {
           </div>
           <div className="flex items-end gap-3 h-40">
             {MONTHLY_TREND.map((m) => {
-              const total = m.graphics + m.cnc;
               const gPct = (m.graphics / MAX_REVENUE) * 100;
               const cPct = (m.cnc / MAX_REVENUE) * 100;
               return (

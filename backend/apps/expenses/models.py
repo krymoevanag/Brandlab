@@ -3,11 +3,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from apps.core.models import BranchScopedModel, TimeStampedModel
+from apps.core.utils import get_branch_prefix
 
 
 def generate_expense_number(branch_code):
     year = datetime.now().year
-    prefix = f"{branch_code}-EXP-{year}-"
+    b_prefix = get_branch_prefix(branch_code)
+    prefix = f"{b_prefix}-EXP-{year}-"
     last_exp = (
         Expense.objects.filter(expense_number__startswith=prefix)
         .order_by("-expense_number")

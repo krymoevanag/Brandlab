@@ -3,11 +3,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models, transaction
 from apps.core.models import BranchScopedModel, TimeStampedModel
+from apps.core.utils import get_branch_prefix
 
 
 def generate_quotation_number(branch_code):
     year = datetime.now().year
-    prefix = f"{branch_code}-QT-{year}-"
+    b_prefix = get_branch_prefix(branch_code)
+    prefix = f"{b_prefix}-QT-{year}-"
     # Find the latest number for this branch and year
     last_quote = (
         Quotation.objects.filter(number__startswith=prefix)

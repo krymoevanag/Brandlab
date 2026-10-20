@@ -55,12 +55,12 @@ const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { label: string; icon: React.
 };
 
 const DEMO_INVOICES: Invoice[] = [
-  { id: "INV-2026-0056", customer: "Safaricom PLC", branch: "NBI", total: 145000, paid: 145000, status: "paid", issuedDate: "14 Oct 2026", dueDate: "28 Oct 2026", jobRef: "NBI-JOB-2026-0040" },
-  { id: "INV-2026-0057", customer: "Apex Architects", branch: "NBI", total: 88500, paid: 50000, status: "partially_paid", issuedDate: "15 Oct 2026", dueDate: "29 Oct 2026", jobRef: "NBI-JOB-2026-0041" },
-  { id: "INV-2026-0058", customer: "KenGen Corporate", branch: "NBI", total: 62000, paid: 0, status: "issued", issuedDate: "17 Oct 2026", dueDate: "31 Oct 2026", jobRef: "NBI-JOB-2026-0044" },
-  { id: "INV-2026-0059", customer: "Meru Greens Ltd", branch: "MER", total: 34000, paid: 34000, status: "paid", issuedDate: "12 Oct 2026", dueDate: "26 Oct 2026", jobRef: "MER-JOB-2026-0019" },
-  { id: "INV-2026-0055", customer: "Baraka Events Ltd", branch: "MER", total: 72000, paid: 0, status: "overdue", issuedDate: "5 Oct 2026", dueDate: "19 Oct 2026", jobRef: "MER-JOB-2026-0017" },
-  { id: "INV-2026-0060", customer: "Java House Kenya", branch: "NBI", total: 28000, paid: 0, status: "draft", issuedDate: "19 Oct 2026", dueDate: "2 Nov 2026", jobRef: "NBI-JOB-2026-0045" },
+  { id: "INV-2026-0056", customer: "Safaricom PLC", branch: "NBI", total: 145000, paid: 145000, status: "paid", issuedDate: "14 Oct 2026", dueDate: "28 Oct 2026", jobRef: "AZNr-JOB-2026-0040" },
+  { id: "INV-2026-0057", customer: "Apex Architects", branch: "NBI", total: 88500, paid: 50000, status: "partially_paid", issuedDate: "15 Oct 2026", dueDate: "29 Oct 2026", jobRef: "AZNr-JOB-2026-0041" },
+  { id: "INV-2026-0058", customer: "KenGen Corporate", branch: "NBI", total: 62000, paid: 0, status: "issued", issuedDate: "17 Oct 2026", dueDate: "31 Oct 2026", jobRef: "AZNr-JOB-2026-0044" },
+  { id: "INV-2026-0059", customer: "Meru Greens Ltd", branch: "MER", total: 34000, paid: 34000, status: "paid", issuedDate: "12 Oct 2026", dueDate: "26 Oct 2026", jobRef: "AZMr-JOB-2026-0019" },
+  { id: "INV-2026-0055", customer: "Baraka Events Ltd", branch: "MER", total: 72000, paid: 0, status: "overdue", issuedDate: "5 Oct 2026", dueDate: "19 Oct 2026", jobRef: "AZMr-JOB-2026-0017" },
+  { id: "INV-2026-0060", customer: "Java House Kenya", branch: "NBI", total: 28000, paid: 0, status: "draft", issuedDate: "19 Oct 2026", dueDate: "2 Nov 2026", jobRef: "AZNr-JOB-2026-0045" },
 ];
 
 const DEMO_PAYMENTS: Payment[] = [

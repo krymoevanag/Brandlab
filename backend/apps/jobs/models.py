@@ -3,11 +3,13 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 from apps.core.models import BranchScopedModel, TimeStampedModel
+from apps.core.utils import get_branch_prefix
 
 
 def generate_job_number(branch_code):
     year = datetime.now().year
-    prefix = f"{branch_code}-JOB-{year}-"
+    b_prefix = get_branch_prefix(branch_code)
+    prefix = f"{b_prefix}-JOB-{year}-"
     last_job = (
         Job.objects.filter(number__startswith=prefix)
         .order_by("-number")
