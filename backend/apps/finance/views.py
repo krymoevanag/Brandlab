@@ -1,12 +1,14 @@
 from decimal import Decimal
 from django.db import transaction
 from rest_framework import viewsets, permissions, filters, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from apps.core.permissions import get_user_branches, user_is_owner, user_has_role, RoleAccessPermission, user_within_approval_limit
 from apps.audit.utils import log_audit
 from apps.jobs.models import Job
+from apps.customers.models import Customer
 from .models import (
     Invoice,
     Payment,
@@ -56,6 +58,18 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        branch = serializer.validated_data.get("branch")
+        customer = serializer.validated_data.get("customer")
+        job = serializer.validated_data.get("job")
+        user = self.request.user
+        if not (user.is_superuser or user_is_owner(user)):
+            permitted = get_user_branches(user)
+            if not branch or not permitted.filter(id=branch.id).exists():
+                raise PermissionDenied("You cannot create an invoice for this branch.")
+            if customer and customer.branch_id != branch.id:
+                raise ValidationError({"customer": "The customer must belong to the invoice branch."})
+            if job and job.branch_id != branch.id:
+                raise ValidationError({"job": "The job must belong to the invoice branch."})
         invoice = serializer.save(created_by=self.request.user)
         log_audit(
             request_or_user=self.request,
@@ -64,6 +78,30 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             entity_id=invoice.number,
             after={"total": str(invoice.total), "customer": invoice.customer.name},
             reason="Issued new invoice",
+            branch=invoice.branch,
+        )
+
+    def perform_update(self, serializer):
+        branch = serializer.validated_data.get("branch", serializer.instance.branch)
+        customer = serializer.validated_data.get("customer", serializer.instance.customer)
+        job = serializer.validated_data.get("job", serializer.instance.job)
+        user = self.request.user
+        if not (user.is_superuser or user_is_owner(user)):
+            permitted = get_user_branches(user)
+            if not branch or not permitted.filter(id=branch.id).exists():
+                raise PermissionDenied("You cannot move an invoice to this branch.")
+            if customer and customer.branch_id != branch.id:
+                raise ValidationError({"customer": "The customer must belong to the invoice branch."})
+            if job and job.branch_id != branch.id:
+                raise ValidationError({"job": "The job must belong to the invoice branch."})
+        invoice = serializer.save()
+        log_audit(
+            request_or_user=self.request,
+            action="UPDATE",
+            entity="Invoice",
+            entity_id=invoice.number,
+            after={"total": str(invoice.total), "status": invoice.status},
+            reason="Updated invoice details",
             branch=invoice.branch,
         )
 
@@ -155,6 +193,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
+        requested_branch_id = request.data.get("branch")
+        user = request.user
+        permitted_branches = get_user_branches(user)
+        if not (user.is_superuser or user_is_owner(user)) and not permitted_branches.filter(id=requested_branch_id).exists():
+            return Response({"error": "You do not have access to this payment branch."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            payment_customer = Customer.objects.get(id=request.data.get("customer"))
+        except Customer.DoesNotExist:
+            return Response({"error": "Payment customer was not found."}, status=status.HTTP_400_BAD_REQUEST)
+        if str(payment_customer.branch_id) != str(requested_branch_id):
+            return Response({"error": "The payment customer must belong to the payment branch."}, status=status.HTTP_400_BAD_REQUEST)
+
         idempotency_key = request.data.get("idempotency_key")
         if not idempotency_key:
             return Response(
@@ -165,11 +215,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
         # Check existing payment with same idempotency key
         existing_payment = Payment.objects.filter(idempotency_key=idempotency_key).first()
         if existing_payment:
+            if not (user.is_superuser or user_is_owner(user)) and not permitted_branches.filter(id=existing_payment.branch_id).exists():
+                return Response({"error": "You do not have access to this payment."}, status=status.HTTP_403_FORBIDDEN)
             serializer = PaymentSerializer(existing_payment)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         allocations_data = request.data.get("allocations", [])
         total_amount = Decimal(str(request.data.get("amount", "0")))
+
+        if total_amount <= Decimal("0.00"):
+            return Response({"error": "Payment amount must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate allocations sum does not exceed total payment amount
         alloc_sum = sum(Decimal(str(a.get("amount", "0"))) for a in allocations_data)
@@ -178,6 +233,29 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 {"error": f"Allocation total ({alloc_sum}) cannot exceed payment amount ({total_amount})."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        allocation_invoice_ids = [
+            a_data.get("invoice")
+            for a_data in allocations_data
+            if a_data.get("invoice") and Decimal(str(a_data.get("amount", "0"))) > Decimal("0.00")
+        ]
+        allocation_totals = {}
+        for invoice_id in allocation_invoice_ids:
+            try:
+                invoice = Invoice.objects.get(id=invoice_id)
+            except Invoice.DoesNotExist:
+                return Response({"error": f"Invoice {invoice_id} was not found."}, status=status.HTTP_400_BAD_REQUEST)
+            if str(invoice.branch_id) != str(requested_branch_id):
+                return Response({"error": "Payment allocations must use invoices from the payment branch."}, status=status.HTTP_400_BAD_REQUEST)
+            if str(invoice.customer_id) != str(request.data.get("customer")):
+                return Response({"error": "Payment allocations must use invoices for the payment customer."}, status=status.HTTP_400_BAD_REQUEST)
+            if not (user.is_superuser or user_is_owner(user)) and not permitted_branches.filter(id=invoice.branch_id).exists():
+                return Response({"error": "You do not have access to the allocated invoice."}, status=status.HTTP_403_FORBIDDEN)
+            allocation_totals[invoice.id] = allocation_totals.get(invoice.id, Decimal("0.00")) + sum(
+                Decimal(str(item.get("amount", "0"))) for item in allocations_data if item.get("invoice") == invoice.id
+            )
+            if allocation_totals[invoice.id] > invoice.balance_due:
+                return Response({"error": f"Allocation exceeds the remaining balance for invoice {invoice.number}."}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             serializer = self.get_serializer(data=request.data)

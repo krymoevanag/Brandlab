@@ -29,8 +29,10 @@ class AtoZBusinessSystemAPITests(APITestCase):
 
         # Explicit permissions used by the role-gated API tests.
         permission_codes = [
+            "customers.view", "customers.create", "customers.edit", "customers.delete",
             "quotations.view", "quotations.create", "quotations.edit", "jobs.create",
             "finance.view", "payments.verify", "expenses.create", "expenses.approve", "expenses.pay",
+            "dashboard.view", "dashboard.cnc.view", "designs.view", "designs.submit", "designs.approve", "audit.view",
         ]
         permissions_by_code = {
             code: Permission.objects.create(code=code, name=code.replace(".", " "))
@@ -38,6 +40,7 @@ class AtoZBusinessSystemAPITests(APITestCase):
         }
         self.role_manager.permissions.set(permissions_by_code.values())
         self.role_sales.permissions.set([permissions_by_code["quotations.view"]])
+        self.role_designer.permissions.set([permissions_by_code["designs.view"], permissions_by_code["designs.submit"]])
 
         # 3. Users
         # Owner (All branches)
@@ -91,6 +94,37 @@ class AtoZBusinessSystemAPITests(APITestCase):
             branch=self.branch_nbi,
         )
 
+    def test_05_customer_api_lists_and_creates_in_authorized_branch(self):
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        response = self.client.get("/api/v1/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+
+        create_response = self.client.post("/api/v1/customers/", {
+            "name": "New Nairobi Customer",
+            "phone": "+254700000001",
+            "email": "new@example.com",
+            "customer_type": "individual",
+        }, format="json")
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(create_response.data["branch"], self.branch_nbi.id)
+
+    def test_06_customer_api_rejects_invalid_and_cross_branch_access(self):
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        invalid_response = self.client.post("/api/v1/customers/", {"name": "Missing phone"}, format="json")
+        self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        meru_customer = Customer.objects.create(name="Meru Customer", phone="+254700000002", branch=self.branch_mer)
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        self.assertEqual(self.client.get(f"/api/v1/customers/{meru_customer.id}/").status_code, status.HTTP_404_NOT_FOUND)
+        update_response = self.client.patch(f"/api/v1/customers/{self.customer_nbi.id}/", {"branch": self.branch_mer.id}, format="json")
+        self.assertEqual(update_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_07_customer_api_requires_authentication(self):
+        self.client.logout()
+        response = self.client.get("/api/v1/customers/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_01_authentication_and_user_profile(self):
         """Test JWT token acquisition and me endpoint."""
         url = reverse("token_obtain_pair")
@@ -106,6 +140,24 @@ class AtoZBusinessSystemAPITests(APITestCase):
         me_resp = self.client.get(reverse("user_profile"))
         self.assertEqual(me_resp.status_code, status.HTTP_200_OK)
         self.assertIn("branch_manager", me_resp.data["roles"])
+        self.assertIn("customers.view", me_resp.data["permissions"])
+
+    def test_login_rejects_user_from_unassigned_branch(self):
+        response = self.client.post(reverse("token_obtain_pair"), {
+            "email": "sales.mer@atozgraphics.co.ke",
+            "password": "Password123!",
+            "branch": "NBI",
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("not assigned", str(response.data).lower())
+
+        allowed = self.client.post(reverse("token_obtain_pair"), {
+            "email": "sales.mer@atozgraphics.co.ke",
+            "password": "Password123!",
+            "branch": "MER",
+        })
+        self.assertEqual(allowed.status_code, status.HTTP_200_OK)
+        self.assertEqual(allowed.data["user"]["default_branch"]["code"], "MER")
 
     def test_02_quote_to_job_conversion_with_snapshot_pricing(self):
         """Test creating a quotation and converting it to a Job without price changes."""
@@ -172,6 +224,15 @@ class AtoZBusinessSystemAPITests(APITestCase):
         owner_resp = self.client.get(f"/api/v1/quotations/{quotation.id}/")
         self.assertEqual(owner_resp.status_code, status.HTTP_200_OK)
 
+    def test_quotation_creation_cannot_select_another_branch(self):
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        response = self.client.post("/api/v1/quotations/", {
+            "branch": self.branch_mer.id,
+            "customer": self.customer_nbi.id,
+            "items": [{"service": self.service_vinyl.id, "description": "Restricted work", "quantity": "1", "unit_price": "100"}],
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_04_invoicing_payment_idempotency_and_separate_receipts(self):
         """Test invoice creation, idempotent payment processing, balances, and separate receipts."""
         self.client.force_authenticate(user=self.user_nbi_mgr)
@@ -206,6 +267,9 @@ class AtoZBusinessSystemAPITests(APITestCase):
         receipt_num = pay_resp.data["receipt"]["number"]
         self.assertTrue(receipt_num.startswith("AZNr-REC-"))
         self.assertNotEqual(receipt_num, invoice.number)
+        receipt = Receipt.objects.get(number=receipt_num)
+        receipt_resp = self.client.get(f"/api/v1/receipts/{receipt.id}/")
+        self.assertEqual(receipt_resp.status_code, status.HTTP_200_OK)
 
         # 2. Check invoice balance updated
         invoice.refresh_from_db()
@@ -217,6 +281,47 @@ class AtoZBusinessSystemAPITests(APITestCase):
         replay_resp = self.client.post("/api/v1/payments/", payment_data, format="json")
         self.assertEqual(replay_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(Payment.objects.filter(idempotency_key="IDEM-TEST-1001").count(), 1)
+
+        over_allocation = {**payment_data, "amount": "5000.00", "reference": "OVER-ALLOC", "idempotency_key": "OVER-ALLOC-IDEM", "allocations": [{"invoice": invoice.id, "amount": "5000.00"}]}
+        over_resp = self.client.post("/api/v1/payments/", over_allocation, format="json")
+        self.assertEqual(over_resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+        invalid_amount = {**payment_data, "amount": "0.00", "reference": "ZERO-AMOUNT", "idempotency_key": "ZERO-AMOUNT-IDEM", "allocations": []}
+        invalid_resp = self.client.post("/api/v1/payments/", invalid_amount, format="json")
+        self.assertEqual(invalid_resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("greater than zero", str(invalid_resp.data).lower())
+
+        self.client.force_authenticate(user=self.user_mer_sales)
+        unauthorized_resp = self.client.post("/api/v1/payments/", payment_data, format="json")
+        self.assertEqual(unauthorized_resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_payment_cannot_allocate_invoice_from_another_branch(self):
+        meru_invoice = Invoice.objects.create(
+            number="MER-INV-2026-0001",
+            branch=self.branch_mer,
+            customer=Customer.objects.create(
+                name="Meru Billing Customer",
+                phone="+254700000003",
+                branch=self.branch_mer,
+            ),
+            status="issued",
+            subtotal=Decimal("5000.00"),
+            total=Decimal("5000.00"),
+            balance_due=Decimal("5000.00"),
+            created_by=self.user_mer_sales,
+        )
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        response = self.client.post("/api/v1/payments/", {
+            "branch": self.branch_nbi.id,
+            "customer": self.customer_nbi.id,
+            "method": "mpesa",
+            "amount": "1000.00",
+            "reference": "CROSS-BRANCH-1",
+            "idempotency_key": "CROSS-BRANCH-IDEM-1",
+            "allocations": [{"invoice": meru_invoice.id, "amount": "1000.00"}],
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Payment.objects.filter(idempotency_key="CROSS-BRANCH-IDEM-1").exists())
 
     def test_05_expense_tracking_and_self_approval_policy(self):
         """Staff cannot approve their own expenses; separate tracking of incurred vs paid."""
@@ -286,18 +391,102 @@ class AtoZBusinessSystemAPITests(APITestCase):
         self.assertTrue(generate_receipt_number("MER").startswith("AZMr-REC-"))
         self.assertTrue(generate_expense_number("MER").startswith("AZMr-EXP-"))
 
-    def test_07_cnc_dashboard_is_role_protected(self):
-        """Designers and managers cannot access CNC production data."""
+    def test_07_cnc_dashboard_uses_granular_permission_and_branch_scope(self):
+        """CNC dashboard access follows the granular permission, not a role name."""
         url = "/api/v1/core/cnc-dashboard/"
 
         self.client.force_authenticate(user=self.user_designer)
         self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
 
         self.client.force_authenticate(user=self.user_nbi_mgr)
-        self.assertEqual(self.client.get(url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
 
         cnc_role = Role.objects.create(code="cnc_operator", name="CNC Operator")
+        cnc_role.permissions.add(Permission.objects.get(code="dashboard.cnc.view"))
         cnc_user = User.objects.create_user(email="cnc@atozgraphics.co.ke", password="Password123!")
         cnc_user.roles.add(cnc_role)
         self.client.force_authenticate(user=cnc_user)
         self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+
+    def test_effective_permissions_union_multiple_roles(self):
+        self.role_designer.permissions.add(Permission.objects.get(code="designs.submit"))
+        self.user_designer.roles.add(self.role_sales)
+        self.assertTrue(self.user_designer.roles.filter(code="sales_attendant").exists())
+        self.assertTrue(self.user_designer.roles.filter(permissions__code="quotations.view").exists())
+        self.assertTrue(self.user_designer.roles.filter(permissions__code="designs.submit").exists())
+
+    def test_multiple_roles_persist_through_login_and_removing_one_role_updates_permissions(self):
+        self.user_designer.roles.add(self.role_sales)
+        login = self.client.post(reverse("token_obtain_pair"), {
+            "email": "designer@atozgraphics.co.ke",
+            "password": "Password123!",
+            "branch": "NBI",
+        })
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(login.data["user"]["roles"], ["designer", "sales_attendant"])
+        self.assertIn("designs.submit", login.data["user"]["permissions"])
+        self.assertIn("quotations.view", login.data["user"]["permissions"])
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        profile = self.client.get(reverse("user_profile"))
+        self.assertEqual(profile.status_code, status.HTTP_200_OK)
+        self.assertCountEqual(profile.data["roles"], ["designer", "sales_attendant"])
+        self.assertIn("quotations.view", profile.data["permissions"])
+
+        self.user_designer.roles.remove(self.role_sales)
+        refreshed_profile = self.client.get(reverse("user_profile"))
+        self.assertEqual(refreshed_profile.status_code, status.HTTP_200_OK)
+        self.assertEqual(refreshed_profile.data["roles"], ["designer"])
+        self.assertNotIn("quotations.view", refreshed_profile.data["permissions"])
+        self.assertIn("designs.submit", refreshed_profile.data["permissions"])
+
+    def test_design_list_is_branch_scoped_and_unauthorized_users_are_denied(self):
+        nbi_job = Job.objects.create(number="AZNr-JOB-2026-9001", branch=self.branch_nbi, customer=self.customer_nbi, status="design_pending")
+        meru_customer = Customer.objects.create(name="Meru Design Customer", phone="+254700000004", branch=self.branch_mer)
+        meru_job = Job.objects.create(number="AZMr-JOB-2026-9001", branch=self.branch_mer, customer=meru_customer, status="design_pending")
+        DesignAssignment.objects.create(job=nbi_job, designer=self.user_designer)
+        meru_assignment = DesignAssignment.objects.create(job=meru_job, designer=self.user_designer)
+
+        self.client.force_authenticate(user=self.user_designer)
+        response = self.client.get("/api/v1/design-assignments/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data["results"]], [DesignAssignment.objects.get(job=nbi_job).id])
+
+        self.client.force_authenticate(user=self.user_mer_sales)
+        self.assertEqual(self.client.get("/api/v1/design-assignments/").status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        self.assertEqual(self.client.get(f"/api/v1/design-assignments/{meru_assignment.id}/").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_design_assignment_and_approval_enforce_permissions_and_branch(self):
+        nbi_job = Job.objects.create(number="AZNr-JOB-2026-9002", branch=self.branch_nbi, customer=self.customer_nbi, status="design_pending")
+        meru_customer = Customer.objects.create(name="Meru Design Customer 2", phone="+254700000005", branch=self.branch_mer)
+        meru_job = Job.objects.create(number="AZMr-JOB-2026-9002", branch=self.branch_mer, customer=meru_customer, status="design_pending")
+
+        self.client.force_authenticate(user=self.user_designer)
+        denied_assignment = self.client.post("/api/v1/design-assignments/", {"job": nbi_job.id, "designer": self.user_designer.id}, format="json")
+        self.assertEqual(denied_assignment.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        cross_branch = self.client.post("/api/v1/design-assignments/", {"job": meru_job.id, "designer": self.user_designer.id}, format="json")
+        self.assertEqual(cross_branch.status_code, status.HTTP_403_FORBIDDEN)
+        created = self.client.post("/api/v1/design-assignments/", {"job": nbi_job.id, "designer": self.user_designer.id}, format="json")
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        assignment_id = created.data["id"]
+
+        self.client.force_authenticate(user=self.user_designer)
+        self.assertEqual(self.client.post(f"/api/v1/design-assignments/{assignment_id}/approve/").status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        approved = self.client.post(f"/api/v1/design-assignments/{assignment_id}/approve/")
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+        self.assertEqual(approved.data["status"], "approved")
+
+    def test_audit_log_permission_and_branch_isolation(self):
+        AuditLog.objects.create(user=self.user_nbi_mgr, branch=self.branch_nbi, action="CREATE", entity="Customer", entity_id="1", reason="Nairobi event")
+        meru_log = AuditLog.objects.create(user=self.user_mer_sales, branch=self.branch_mer, action="CREATE", entity="Customer", entity_id="2", reason="Meru event")
+        self.client.force_authenticate(user=self.user_designer)
+        self.assertEqual(self.client.get("/api/v1/audit-logs/").status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(user=self.user_nbi_mgr)
+        response = self.client.get("/api/v1/audit-logs/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(all(item["branch"] == self.branch_nbi.id for item in response.data["results"]))
+        self.assertEqual(self.client.get(f"/api/v1/audit-logs/{meru_log.id}/").status_code, status.HTTP_404_NOT_FOUND)

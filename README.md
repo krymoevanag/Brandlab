@@ -260,7 +260,13 @@ According to the project setup, this command creates or updates:
 - The Graphics and CNC business units.
 - The granular permission catalogue and role-to-permission assignments.
 
-The command does not create staff passwords. Create the first administrator with `python manage.py createsuperuser`, then create ordinary staff accounts from Django Admin or the owner's **Staff & Access** screen.
+The command does not create a login unless you explicitly provide one. To create a fresh local owner who can create business records, provide credentials at runtime:
+
+```bash
+python manage.py seed_initial_data --user-email owner@example.com --user-password "choose-a-local-password" --user-role owner --user-branch NBI
+```
+
+The password is never stored in source code. Use Django Admin or the owner's **Staff & Access** screen to create additional staff accounts.
 
 ### 7. Create a Django administrator account (optional)
 
@@ -461,7 +467,14 @@ The following routes are listed in the project documentation:
 | `GET` | `/api/v1/jobs/` | View job cards. |
 | `GET` | `/api/v1/invoices/` | View invoices. |
 | `GET` | `/api/v1/payments/` | View payment records. |
+| `POST` | `/api/v1/payments/` | Record an idempotent payment and allocate it to invoices. |
+| `POST` | `/api/v1/payments/{id}/reverse/` | Reverse a completed payment with an authorized reason. |
+| `GET` | `/api/v1/receipts/` | View generated payment receipts. |
 | `GET` | `/api/v1/expenses/` | View expenses. |
+| `POST` | `/api/v1/expenses/` | Record an expense in the authenticated user's permitted branch scope. |
+| `GET` | `/api/v1/design-assignments/` | View branch-scoped design assignments. |
+| `POST` | `/api/v1/design-assignments/{id}/upload-file/` | Submit a design file where permitted. |
+| `POST` | `/api/v1/design-assignments/{id}/approve/` | Approve a design where permitted. |
 | `GET` | `/api/v1/audit-logs/` | Read the audit history. |
 | `GET` | `/api/v1/reports/` | Access financial summary endpoints. |
 
@@ -473,12 +486,18 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 
 The exact data and permissions available from an endpoint depend on the backend implementation and the logged-in user's role.
 
+### Authentication and branch selection
+
+The login form sends the selected branch to the JWT endpoint. The backend rejects a login when the user is not assigned to that active branch. Selecting a branch in the frontend does not grant access to it.
+
+The frontend refreshes the authenticated profile after login and during an active session. If a role or permission changes, the updated effective permissions are reflected after the profile refresh.
+
 ## Development accounts
 
 No shared passwords or automatic demo accounts are created by the seed command. Create a local owner account with:
 
 ```bash
-python manage.py createsuperuser
+python manage.py seed_initial_data --user-email owner@example.com --user-password "choose-a-local-password" --user-role owner --user-branch NBI
 ```
 
 After logging in, use Django Admin or the owner-only **Staff & Access** screen to create staff accounts and assign their roles, branches, and business units. Never reuse development passwords in production.
@@ -489,21 +508,23 @@ The README marks the following modules as complete or planned. Actual availabili
 
 | Feature | Current status in the README | What it does |
 |---|---|---|
-| Dashboard | Complete | Displays key performance indicators, job progress, quick actions, and a breakdown by business unit. |
+| Dashboard | Partially connected | Displays authorized operational data and current workflow information. Backend-derived summary metrics remain the next integration step. |
 | Customers | Complete | Shows customer records in a directory and provides a form for adding customers. |
 | Orders and quotations | Complete | Tracks quotations from draft through to conversion. |
 | Job cards | Complete | Displays job details, priority, and progress through a seven-stage workflow. |
-| Invoices and payments | Complete | Manages invoices and payment records, including cash, M-Pesa, and bank payments. |
+| Invoices and payments | Complete | Manages invoices, idempotent cash/M-Pesa/bank payments, invoice allocation, balances, receipts, and authorized payment reversal. |
 | Expenses | Complete | Supports expense approval and summaries by category. |
 | Reports | Complete | Displays key figures, a six-month chart, branch summaries, and top-customer information. |
 | Audit logs | Complete | Keeps a history of recorded actions for review. |
 | CNC production | Protected dashboard | Branch-scoped production metrics and jobs are available to authorized CNC operators and owners. |
 | Materials and stock | Planned | Intended to track inventory, low-stock alerts, and transfers between branches. |
-| Design studio | Planned | Intended to support artwork uploads, proofing, and approval. |
+| Design studio | Complete | Shows branch-scoped assignments and supports permitted artwork submission, approval, revision requests, and comments. |
 
 ## Staff roles and permissions
 
 Access is enforced by the backend using roles, granular permissions, branches, and business units. The frontend hides unavailable modules, but the API remains the security boundary.
+
+Users can have multiple roles. Effective permissions are the union of permissions granted by all assigned roles, while branch scope, record ownership, workflow state, approval limits, and separation-of-duties rules are enforced separately by the backend. Removing one role removes its exclusive permissions while preserving permissions from the remaining roles.
 
 | Permission | Owner | Branch Manager | Finance Officer | Sales Attendant | Designer | CNC Operator | Storekeeper | Auditor |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -518,6 +539,28 @@ Access is enforced by the backend using roles, granular permissions, branches, a
 | View audit logs | Yes | Scoped | Financial | No | No | No | Stock | Yes |
 
 Each user also receives explicit branch and business-unit scope. An owner or superuser is unrestricted; other users only receive records and modules allowed by both their permissions and assigned scope.
+
+The current seed configuration grants `expenses.create` to owners, branch managers, finance officers, and storekeepers. Payment recording requires `payments.verify`; payment reversal requires `payments.reverse`; financial viewing requires `finance.view`. Direct per-user permission grants are not currently included in effective permission calculation, so additional access should be provided through a narrowly scoped role.
+
+Financial safeguards include required payment idempotency keys, atomic allocation and receipt creation, persisted balance recalculation, cross-branch checks, over-allocation checks, and documented reversal reasons. The frontend reuses the same idempotency key after an ambiguous payment failure so a retry cannot create a second payment record.
+
+## Verification
+
+The current backend test suite covers authentication, multi-role permissions, branch isolation, customer and quotation workflows, design approval, audit access, expenses, invoices, payments, idempotency, receipts, and payment validation.
+
+Run the main checks with:
+
+```bash
+cd backend
+python manage.py check
+python manage.py test
+
+cd ../frontend_app
+npm run build
+npm run lint
+```
+
+The frontend currently reports non-fatal React hook warnings during linting. These warnings do not fail the lint command and are tracked for cleanup.
 
 ## Access-control setup
 

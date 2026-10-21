@@ -1,5 +1,6 @@
 from django.utils import timezone
 from rest_framework import viewsets, permissions, filters, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -22,7 +23,11 @@ class DesignAssignmentViewSet(viewsets.ModelViewSet):
     """
     serializer_class = DesignAssignmentSerializer
     permission_classes = [permissions.IsAuthenticated, RoleAccessPermission]
-    permission_access = {"list": "designs.view", "retrieve": "designs.view", "create": "designs.submit", "update": "designs.submit", "partial_update": "designs.submit", "destroy": "designs.submit"}
+    permission_access = {
+        "list": "designs.view", "retrieve": "designs.view",
+        "create": "designs.submit", "update": "designs.submit", "partial_update": "designs.submit", "destroy": "designs.submit",
+        "upload_file": "designs.submit", "add_comment": "designs.submit", "request_revision": "designs.approve", "approve": "designs.approve",
+    }
     role_access = {"GET": ["branch_manager", "sales_attendant", "designer"], "POST": ["branch_manager", "designer"], "PUT": ["branch_manager", "designer"], "PATCH": ["branch_manager", "designer"], "DELETE": ["branch_manager"]}
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["job", "designer", "status"]
@@ -36,7 +41,9 @@ class DesignAssignmentViewSet(viewsets.ModelViewSet):
         
         # Designers see their assigned work
         if user_has_role(user, "designer") and not (user.is_superuser or user_is_owner(user)):
-            return DesignAssignment.objects.filter(designer=user).select_related("job", "designer", "approved_by").prefetch_related("files", "comments")
+            return DesignAssignment.objects.filter(
+                designer=user, job__branch__in=get_user_branches(user)
+            ).select_related("job", "designer", "approved_by").prefetch_related("files", "comments")
 
         # Superusers and owners see all
         if user.is_superuser or user_is_owner(user):
@@ -51,6 +58,17 @@ class DesignAssignmentViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        user = self.request.user
+        assignment = serializer.validated_data.get("job")
+        designer = serializer.validated_data.get("designer")
+        branches = get_user_branches(user)
+        if not (user.is_superuser or user_is_owner(user)):
+            if assignment.branch_id not in branches.values_list("id", flat=True):
+                raise PermissionDenied("You cannot assign designs outside your permitted branches.")
+            if not designer.branches.filter(id=assignment.branch_id).exists():
+                raise ValidationError({"designer": "The designer is not assigned to the job's branch."})
+            if not user_has_role(user, ["branch_manager", "sales_attendant"]):
+                raise PermissionDenied("Only authorized branch staff can assign designs.")
         assignment = serializer.save()
         log_audit(
             request_or_user=self.request,

@@ -1,5 +1,6 @@
 from django.db import transaction
 from rest_framework import viewsets, permissions, filters, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -42,6 +43,15 @@ class QuotationViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        branch = serializer.validated_data.get("branch")
+        customer = serializer.validated_data.get("customer")
+        user = self.request.user
+        if not (user.is_superuser or user_is_owner(user)):
+            permitted = get_user_branches(user)
+            if not branch or not permitted.filter(id=branch.id).exists():
+                raise PermissionDenied("You cannot create a quotation for this branch.")
+            if customer and customer.branch_id != branch.id:
+                raise ValidationError({"customer": "The customer must belong to the quotation branch."})
         quotation = serializer.save(created_by=self.request.user)
         log_audit(
             request_or_user=self.request,
@@ -54,6 +64,15 @@ class QuotationViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        branch = serializer.validated_data.get("branch", serializer.instance.branch)
+        customer = serializer.validated_data.get("customer", serializer.instance.customer)
+        user = self.request.user
+        if not (user.is_superuser or user_is_owner(user)):
+            permitted = get_user_branches(user)
+            if not branch or not permitted.filter(id=branch.id).exists():
+                raise PermissionDenied("You cannot move a quotation to this branch.")
+            if customer and customer.branch_id != branch.id:
+                raise ValidationError({"customer": "The customer must belong to the quotation branch."})
         old_data = {"status": serializer.instance.status, "total": str(serializer.instance.total)}
         quotation = serializer.save()
         log_audit(

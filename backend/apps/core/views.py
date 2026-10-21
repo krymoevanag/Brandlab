@@ -33,7 +33,7 @@ class CncDashboardView(APIView):
     """Protected CNC dashboard boundary for production metrics and machine data."""
 
     permission_classes = [IsAuthenticated, RoleAccessPermission]
-    role_access = {"GET": ["cnc_operator"]}
+    permission_access = {"GET": "dashboard.cnc.view"}
 
     def get(self, request):
         jobs = Job.objects.select_related("branch", "customer").filter(

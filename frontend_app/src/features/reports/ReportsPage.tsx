@@ -22,25 +22,15 @@ interface BranchStat {
 }
 
 const BRANCH_STATS: Record<"NBI" | "MER", BranchStat> = {
-  NBI: { branch: "Nairobi", revenue: 680000, expenses: 210000, jobs: 32, customers: 48, profit: 470000 },
-  MER: { branch: "Meru", expenses: 67000, revenue: 190000, jobs: 12, customers: 19, profit: 123000 },
+  NBI: { branch: "Nairobi", revenue: 0, expenses: 0, jobs: 0, customers: 0, profit: 0 },
+  MER: { branch: "Meru", revenue: 0, expenses: 0, jobs: 0, customers: 0, profit: 0 },
 };
 
-const UNIT_BREAKDOWN = [
-  { unit: "Graphics & Branding", revenue: 528000, jobs: 28, avgJob: "KES 18,857", color: "bg-sky-500", pct: 62 },
-  { unit: "CNC Services", revenue: 342000, jobs: 16, avgJob: "KES 21,375", color: "bg-orange-500", pct: 38 },
-];
+const UNIT_BREAKDOWN: Array<{ unit: string; revenue: number; jobs: number; avgJob: string; color: string; pct: number }> = [];
 
-const MONTHLY_TREND = [
-  { month: "May", graphics: 320000, cnc: 180000 },
-  { month: "Jun", graphics: 390000, cnc: 210000 },
-  { month: "Jul", graphics: 450000, cnc: 240000 },
-  { month: "Aug", graphics: 410000, cnc: 195000 },
-  { month: "Sep", graphics: 510000, cnc: 300000 },
-  { month: "Oct", graphics: 528000, cnc: 342000 },
-];
+const MONTHLY_TREND: Array<{ month: string; graphics: number; cnc: number }> = [];
 
-const MAX_REVENUE = Math.max(...MONTHLY_TREND.map((m) => m.graphics + m.cnc));
+const MAX_REVENUE = Math.max(1, ...MONTHLY_TREND.map((m) => m.graphics + m.cnc));
 
 const fmt = (n: number) => `KES ${n.toLocaleString()}`;
 
@@ -51,7 +41,8 @@ export const ReportsPage: React.FC = () => {
   const totalRevenue = (branchFilter === "all" ? BRANCH_STATS.NBI.revenue + BRANCH_STATS.MER.revenue : BRANCH_STATS[branchFilter].revenue);
   const totalExpenses = (branchFilter === "all" ? BRANCH_STATS.NBI.expenses + BRANCH_STATS.MER.expenses : BRANCH_STATS[branchFilter].expenses);
   const totalProfit = totalRevenue - totalExpenses;
-  const profitMargin = Math.round((totalProfit / totalRevenue) * 100);
+  const profitMargin = totalRevenue ? Math.round((totalProfit / totalRevenue) * 100) : 0;
+  const topCustomers: Array<{ rank: number; name: string; branch: string; revenue: number; jobs: number; share: number }> = [];
 
   return (
     <div className="space-y-6">
@@ -244,13 +235,7 @@ export const ReportsPage: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {[
-              { rank: 1, name: "Safaricom PLC", branch: "NBI", revenue: 280000, jobs: 3, share: 32 },
-              { rank: 2, name: "Equity Bank Kenya", branch: "NBI", revenue: 145000, jobs: 2, share: 17 },
-              { rank: 3, name: "KenGen Corporate", branch: "NBI", revenue: 93500, jobs: 2, share: 11 },
-              { rank: 4, name: "Apex Architects", branch: "NBI", revenue: 88500, jobs: 1, share: 10 },
-              { rank: 5, name: "Baraka Events Ltd", branch: "MER", revenue: 72000, jobs: 2, share: 8 },
-            ].map((c) => (
+            {topCustomers.map((c) => (
               <tr key={c.rank} className="hover:bg-slate-50/60 transition-colors">
                 <td className="py-3 px-4 font-bold text-slate-400">#{c.rank}</td>
                 <td className="py-3 px-4 font-semibold text-slate-900">{c.name}</td>

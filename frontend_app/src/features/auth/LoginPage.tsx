@@ -2,14 +2,28 @@ import React, { useState } from "react";
 import graphicsLogo from "../../assets/logos/az-graphics.jpg";
 import cncLogo from "../../assets/logos/az-cnc-services.jpg";
 import { Lock, Mail, MapPin, ArrowRight, ShieldCheck } from "lucide-react";
+import { ApiError, apiClient, type AuthSession } from "../../api/client";
 
 interface LoginPageProps {
-  onLoginSuccess: (token: string, user: { email: string; roles: string[]; branch: string }) => void;
+  onLoginSuccess: (session: AuthSession, user: { email: string; roles: string[]; branch: string; branchId: number; permissions: string[] }) => void;
+}
+
+function loginErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "We could not complete sign in. Please try again.";
+  const detail = error.message.toLowerCase();
+  if (error.status === 0) return "Unable to reach the server. Check your connection and try again.";
+  if (error.status === 408) return "Sign in timed out. Check your connection and try again.";
+  if (error.status === 401 && detail.includes("inactive")) return "This account is inactive. Contact an administrator.";
+  if (error.status === 401) return "Invalid email or password.";
+  if (error.status === 403) return "Your account is not authorized to sign in.";
+  if (error.status === 400) return `Please check your sign-in details. ${error.message}`;
+  if (error.status >= 500) return "The server could not complete sign in. Please try again shortly.";
+  return error.message || "We could not complete sign in. Please try again.";
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState("owner@atozgraphics.co.ke");
-  const [password, setPassword] = useState("Password123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [branch, setBranch] = useState("NBI");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,42 +34,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setError(null);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/v1/auth/token/", {
+      const data = await apiClient.request<{
+        access: string;
+        refresh: string;
+        user: { email: string; roles?: string[]; permissions?: string[]; default_branch?: { id?: number; code?: string } | null };
+      }>("/v1/auth/token/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, branch }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || data.detail || "Authentication failed.");
-      }
-
       const roles = Array.isArray(data.user?.roles) ? data.user.roles : [];
-      onLoginSuccess(data.access, {
+      onLoginSuccess({ access: data.access, refresh: data.refresh }, {
         email: data.user.email,
         roles,
         branch: data.user.default_branch?.code || branch,
+        branchId: data.user.default_branch?.id || 0,
+        permissions: Array.isArray(data.user.permissions) ? data.user.permissions : [],
       });
-    } catch (err: any) {
-      setError(err.message || "Authentication failed. Start the backend and try again.");
+    } catch (err) {
+      setError(loginErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
   };
-
-  const quickFill = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("Password123!");
-  };
-
-  const DEMO_ROLES = [
-    { emoji: "👑", label: "Owner",   sublabel: "All access",   email: "owner@atozgraphics.co.ke" },
-    { emoji: "🏢", label: "Manager", sublabel: "NBI branch",   email: "mgr.nbi@atozgraphics.co.ke" },
-    { emoji: "💼", label: "Sales",   sublabel: "MER branch",   email: "sales.mer@atozgraphics.co.ke" },
-    { emoji: "🎨", label: "Designer",sublabel: "Graphics",     email: "designer@atozgraphics.co.ke" },
-  ];
 
   return (
     <div className="min-h-screen bg-brand-charcoal flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -198,34 +200,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* ── Demo role quick-fill ── */}
-          <div className="mt-5 pt-4 border-t border-brand-border">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xs font-bold uppercase tracking-wider text-brand-muted">
-                Development Accounts
-              </span>
-              <span className="text-2xs text-brand-muted">Click to fill</span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {DEMO_ROLES.map((r) => (
-                <button
-                  key={r.email}
-                  type="button"
-                  onClick={() => quickFill(r.email)}
-                  className={[
-                    "p-2 text-left rounded-btn border text-xs transition-all duration-standard",
-                    email === r.email
-                      ? "border-brand-charcoal bg-brand-surface"
-                      : "border-brand-border hover:border-brand-charcoal hover:bg-brand-surface",
-                  ].join(" ")}
-                >
-                  <span className="mr-1">{r.emoji}</span>
-                  <strong className="font-semibold text-brand-charcoal">{r.label}</strong>
-                  <span className="block text-2xs text-brand-muted mt-0.5">{r.sublabel}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* ── Security footer ── */}

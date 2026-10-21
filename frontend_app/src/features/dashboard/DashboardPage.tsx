@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { BusinessUnit } from "../../types/business";
 import { BUSINESS_UNITS } from "../../types/business";
 import { BrandHeader } from "../../components/branding/BrandHeader";
+import { apiClient } from "../../api/client";
 import {
   TrendingUp,
   CreditCard,
@@ -18,29 +19,30 @@ interface DashboardPageProps {
   branchCode: string;
   userRole?: string;
   accessToken?: string;
+  permissions?: string[];
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   businessUnit,
   branchCode,
   accessToken,
+  permissions = [],
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<"all" | "pending" | "completed">("all");
   const [liveCncJobs, setLiveCncJobs] = useState<any[] | null>(null);
   const [cncMetrics, setCncMetrics] = useState({ active_jobs: 0, quality_check: 0, ready_for_delivery: 0 });
 
   useEffect(() => {
-    if (businessUnit !== "cnc" || !accessToken) {
+    if (businessUnit !== "cnc" || !accessToken || !permissions.includes("dashboard.cnc.view")) {
       setLiveCncJobs(null);
       return;
     }
-    fetch("http://127.0.0.1:8000/api/v1/core/cnc-dashboard/", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("CNC dashboard access denied.");
-        return response.json();
-      })
+    apiClient.request<{
+      active_jobs: number;
+      quality_check: number;
+      ready_for_delivery: number;
+      jobs: Array<{ number: string; customer: string; priority: string; status: string; due_at: string | null; total: number }>;
+    }>("/v1/core/cnc-dashboard/")
       .then((data) => {
         setCncMetrics({ active_jobs: data.active_jobs, quality_check: data.quality_check, ready_for_delivery: data.ready_for_delivery });
         setLiveCncJobs(data.jobs.map((job: any) => ({
@@ -56,65 +58,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         })));
       })
       .catch(() => setLiveCncJobs([]));
-  }, [businessUnit, accessToken]);
+  }, [businessUnit, accessToken, permissions]);
 
-  const orders = [
-    {
-      id: "AZNr-JOB-2026-0042",
-      customer: "Safaricom PLC",
-      unit: "graphics",
-      description: "Fleet Branding & Reflective Vinyl Wraps",
-      amount: "KES 145,000",
-      status: "in_production",
-      statusLabel: "In Production",
-      dueDate: "Tomorrow, 4:00 PM",
-      badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
-    },
-    {
-      id: "AZNr-JOB-2026-0043",
-      customer: "Apex Architects Nairobi",
-      unit: "cnc",
-      description: "Brass Architectural Lettering & 3D Router Cutting",
-      amount: "KES 88,500",
-      status: "quality_check",
-      statusLabel: "Quality Check",
-      dueDate: "21 Oct 2026",
-      badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
-    },
-    {
-      id: "AZMr-JOB-2026-0019",
-      customer: "Meru Greens Ltd",
-      unit: "graphics",
-      description: "Rollup Banners & UV Flatbed Signage",
-      amount: "KES 34,000",
-      status: "ready_for_delivery",
-      statusLabel: "Ready for Delivery",
-      dueDate: "22 Oct 2026",
-      badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
-    },
-    {
-      id: "AZNr-JOB-2026-0044",
-      customer: "KenGen Corporate Office",
-      unit: "cnc",
-      description: "Acrylic Machine Guard Shields & Laser Engraving",
-      amount: "KES 62,000",
-      status: "design_approved",
-      statusLabel: "Design Approved",
-      dueDate: "24 Oct 2026",
-      badgeClass: "bg-orange-50 text-orange-700 border-orange-200",
-    },
-    {
-      id: "AZNr-JOB-2026-0045",
-      customer: "Java House Kenya",
-      unit: "graphics",
-      description: "Custom Engraved Wooden Coasters & Gift Boxes",
-      amount: "KES 28,000",
-      status: "pending_deposit",
-      statusLabel: "Pending Deposit",
-      dueDate: "25 Oct 2026",
-      badgeClass: "bg-sky-50 text-sky-700 border-sky-200",
-    },
-  ];
+  const orders: Array<{ id: string; customer: string; status: string; amount: number }> = [];
+  const canViewFinance = permissions.includes("finance.view");
+  const canViewJobs = permissions.includes("jobs.view");
+  const canCreateQuotation = permissions.includes("quotations.create");
+  const canCreateJob = permissions.includes("jobs.create");
+  const canCreateExpense = permissions.includes("expenses.create");
 
   // Filter orders by active business unit
   const filteredOrders = (businessUnit === "cnc" && liveCncJobs ? liveCncJobs : orders).filter((o) => {
@@ -134,7 +85,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* 2. Key Operational Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1: Revenue / Collections */}
-        <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
+        {canViewFinance && <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {businessUnit === "cnc" ? "CNC Revenue" : businessUnit === "graphics" ? "Graphics Revenue" : "Total Collections"}
@@ -145,16 +96,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-xl font-bold text-slate-900">
-              {businessUnit === "cnc" ? "KES 342,000" : businessUnit === "graphics" ? "KES 528,000" : "KES 870,000"}
+              KES 0
             </h3>
-            <p className="text-[11px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
-              <span>↑ +14.2%</span> <span className="text-slate-400">vs last month</span>
+            <p className="text-[11px] text-slate-500 font-medium mt-1">
+              No collections recorded yet
             </p>
           </div>
-        </div>
+        </div>}
 
         {/* Metric 2: Active Orders / Machine Time */}
-        <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
+        {canViewJobs && <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {businessUnit === "cnc" ? "Active CNC Jobs" : businessUnit === "graphics" ? "Print & Design Jobs" : "Jobs in Progress"}
@@ -165,16 +116,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-xl font-bold text-slate-900">
-              {businessUnit === "cnc" ? `${cncMetrics.active_jobs} Active CNC Jobs` : businessUnit === "graphics" ? "14 Print Jobs" : "22 Total Jobs"}
+              {businessUnit === "cnc" ? `${cncMetrics.active_jobs} Active CNC Jobs` : "0 Jobs in Progress"}
             </h3>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              {businessUnit === "cnc" ? `${cncMetrics.quality_check} Quality Checks · ${cncMetrics.ready_for_delivery} Ready` : "6 Awaiting Approval · 8 In Press"}
+              {businessUnit === "cnc" ? `${cncMetrics.quality_check} Quality Checks · ${cncMetrics.ready_for_delivery} Ready` : "No active jobs recorded yet"}
             </p>
           </div>
-        </div>
+        </div>}
 
         {/* Metric 3: Expenses Recorded */}
-        <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
+        {canCreateExpense && <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Month Expenses
@@ -185,16 +136,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-xl font-bold text-slate-900">
-              {businessUnit === "cnc" ? "KES 112,400" : businessUnit === "graphics" ? "KES 164,800" : "KES 277,200"}
+              KES 0
             </h3>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              3 Pending Manager Approval
+              No expenses recorded yet
             </p>
           </div>
-        </div>
+        </div>}
 
         {/* Metric 4: Outstanding Invoice Balance */}
-        <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
+        {canViewFinance && <div className="bg-white p-5 rounded-card border border-slate-200/90 shadow-card hover:shadow-cardHover transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Pending Balances
@@ -205,13 +156,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-xl font-bold text-slate-900">
-              KES 194,500
+              KES 0
             </h3>
             <p className="text-[11px] text-rose-600 font-medium mt-1">
-              5 Invoices due this week
+              No outstanding invoices
             </p>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* 3. Operational Quick Actions Bar */}
@@ -221,22 +172,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <span className="text-xs text-slate-500">Fast entry for daily front-desk & floor operations</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-action hover:bg-blue-700 text-white rounded-btn text-xs font-semibold shadow-sm transition-all">
+          {canCreateQuotation && <button className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-action hover:bg-blue-700 text-white rounded-btn text-xs font-semibold shadow-sm transition-all">
             <Plus className="w-3.5 h-3.5" />
             <span>New Quotation</span>
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
+          </button>}
+          {canCreateJob && <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
             <Printer className="w-3.5 h-3.5 text-sky-600" />
             <span>Graphics Job Card</span>
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
+          </button>}
+          {permissions.includes("dashboard.cnc.view") && <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
             <Cpu className="w-3.5 h-3.5 text-orange-600" />
             <span>CNC Cutting Sheet</span>
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
+          </button>}
+          {canCreateExpense && <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-btn text-xs font-medium shadow-sm transition-all">
             <Wallet className="w-3.5 h-3.5 text-amber-600" />
             <span>Record Expense</span>
-          </button>
+          </button>}
         </div>
       </div>
 

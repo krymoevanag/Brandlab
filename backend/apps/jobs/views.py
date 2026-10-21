@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, filters, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -43,6 +44,15 @@ class JobViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
+        branch = serializer.validated_data.get("branch")
+        customer = serializer.validated_data.get("customer")
+        user = self.request.user
+        if not (user.is_superuser or user_is_owner(user)):
+            permitted = get_user_branches(user)
+            if not branch or not permitted.filter(id=branch.id).exists():
+                raise PermissionDenied("You cannot create a job for this branch.")
+            if customer and customer.branch_id != branch.id:
+                raise ValidationError({"customer": "The customer must belong to the job branch."})
         job = serializer.save(created_by=self.request.user)
         JobStatusHistory.objects.create(
             job=job,

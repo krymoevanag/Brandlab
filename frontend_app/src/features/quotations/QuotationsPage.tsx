@@ -1,202 +1,82 @@
-import React, { useState } from "react";
-import {
-  FileText,
-  Plus,
-  Search,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  ChevronRight,
-  Printer,
-  Cpu,
-  Filter,
-} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { FileText, Filter, Plus, Search, XCircle } from "lucide-react";
+import { ApiError } from "../../api/client";
+import { customerApi, type Customer } from "../../api/customers";
+import { quotationApi, type Quotation, type QuotationInput, type ServiceOption } from "../../api/quotations";
 
-type QuoteStatus = "draft" | "sent" | "approved" | "rejected" | "converted";
+const EMPTY_FORM: QuotationInput = { branch: 0, customer: 0, status: "draft", discount: "0", tax: "0", valid_until: null, notes: "", items: [{ service: null, description: "", quantity: "1", unit_price: "0", discount: "0" }] };
+const errorText = (error: unknown) => error instanceof ApiError ? error.message : "Unable to complete the quotation request.";
+const asList = <T,>(value: { results?: T[] } | T[]) => Array.isArray(value) ? value : value.results || [];
 
-interface Quotation {
-  id: string;
-  customer: string;
-  unit: "graphics" | "cnc";
-  branch: string;
-  description: string;
-  amount: string;
-  status: QuoteStatus;
-  date: string;
-  validUntil: string;
-  items: number;
-}
+interface Props { permissions?: string[]; }
 
-const STATUS_CONFIG: Record<QuoteStatus, { label: string; cls: string; icon: React.ElementType }> = {
-  draft: { label: "Draft", cls: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
-  sent: { label: "Sent to Client", cls: "bg-sky-50 text-sky-700 border-sky-200", icon: FileText },
-  approved: { label: "Approved", cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-  rejected: { label: "Rejected", cls: "bg-rose-50 text-rose-700 border-rose-200", icon: XCircle },
-  converted: { label: "Converted → Job", cls: "bg-blue-50 text-blue-700 border-blue-200", icon: CheckCircle2 },
-};
-
-const DEMO_QUOTES: Quotation[] = [
-  { id: "QUO-2026-0088", customer: "Safaricom PLC", unit: "graphics", branch: "NBI", description: "Fleet branding vinyl wraps (20 vehicles)", amount: "KES 280,000", status: "approved", date: "17 Oct 2026", validUntil: "31 Oct 2026", items: 6 },
-  { id: "QUO-2026-0087", customer: "Equity Bank Kenya", unit: "graphics", branch: "NBI", description: "Branch interior signage & wall branding", amount: "KES 145,000", status: "sent", date: "16 Oct 2026", validUntil: "30 Oct 2026", items: 8 },
-  { id: "QUO-2026-0086", customer: "Apex Architects Nairobi", unit: "cnc", branch: "NBI", description: "Laser-cut brass lettering — commercial complex", amount: "KES 93,500", status: "draft", date: "15 Oct 2026", validUntil: "29 Oct 2026", items: 3 },
-  { id: "QUO-2026-0085", customer: "Meru Greens Ltd", unit: "graphics", branch: "MER", description: "Event rollup banners × 12 + table runners", amount: "KES 48,000", status: "converted", date: "12 Oct 2026", validUntil: "26 Oct 2026", items: 4 },
-  { id: "QUO-2026-0084", customer: "KenGen Corporate", unit: "cnc", branch: "NBI", description: "Machine guard acrylic shields (custom spec)", amount: "KES 62,000", status: "approved", date: "11 Oct 2026", validUntil: "25 Oct 2026", items: 5 },
-  { id: "QUO-2026-0083", customer: "Java House Kenya", unit: "graphics", branch: "NBI", description: "Wooden corporate gift boxes with laser engraving", amount: "KES 28,000", status: "rejected", date: "8 Oct 2026", validUntil: "22 Oct 2026", items: 2 },
-  { id: "QUO-2026-0082", customer: "Baraka Events Ltd", unit: "graphics", branch: "MER", description: "Event backdrop + step-and-repeat stands", amount: "KES 72,000", status: "sent", date: "6 Oct 2026", validUntil: "20 Oct 2026", items: 3 },
-];
-
-const PIPELINE_STAGES: { status: QuoteStatus; label: string; color: string }[] = [
-  { status: "draft", label: "Drafts", color: "bg-slate-400" },
-  { status: "sent", label: "Sent", color: "bg-sky-500" },
-  { status: "approved", label: "Approved", color: "bg-emerald-500" },
-  { status: "converted", label: "Converted", color: "bg-blue-600" },
-  { status: "rejected", label: "Rejected", color: "bg-rose-500" },
-];
-
-export const QuotationsPage: React.FC = () => {
+export const QuotationsPage: React.FC<Props> = ({ permissions = [] }) => {
+  const canCreate = permissions.includes("quotations.create");
+  const canEdit = permissions.includes("quotations.edit");
+  const canConvert = permissions.includes("jobs.create");
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [services, setServices] = useState<ServiceOption[]>([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<QuoteStatus | "all">("all");
-  const [unitFilter, setUnitFilter] = useState<"all" | "graphics" | "cnc">("all");
+  const [status, setStatus] = useState<Quotation["status"] | "all">("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Quotation | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState<QuotationInput>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [convertingId, setConvertingId] = useState<number | null>(null);
 
-  const filtered = DEMO_QUOTES.filter((q) => {
-    const qs = search.toLowerCase();
-    const matchSearch = !qs || q.customer.toLowerCase().includes(qs) || q.id.toLowerCase().includes(qs) || q.description.toLowerCase().includes(qs);
-    const matchStatus = statusFilter === "all" || q.status === statusFilter;
-    const matchUnit = unitFilter === "all" || q.unit === unitFilter;
-    return matchSearch && matchStatus && matchUnit;
-  });
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [quoteResponse, customerResponse, serviceResponse] = await Promise.all([
+        quotationApi.list({ search: search.trim(), status: status === "all" ? undefined : status }),
+        customerApi.list({ is_active: true }), quotationApi.services(),
+      ]);
+      setQuotations(quoteResponse.results); setCustomers(customerResponse.results); setServices(asList(serviceResponse));
+    } catch (requestError) { setError(errorText(requestError)); } finally { setLoading(false); }
+  }, [search, status]);
 
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-5 h-5 text-brand-action" />
-            Orders & Quotations
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {DEMO_QUOTES.length} quotations · {DEMO_QUOTES.filter((q) => q.status === "approved").length} approved
-          </p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-brand-action hover:bg-blue-700 text-white rounded-btn text-xs font-semibold shadow-sm transition-all">
-          <Plus className="w-4 h-4" />
-          New Quotation
-        </button>
-      </div>
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 250); return () => window.clearTimeout(timer); }, [load]);
 
-      {/* Pipeline Summary */}
-      <div className="grid grid-cols-5 gap-3">
-        {PIPELINE_STAGES.map((stage) => {
-          const count = DEMO_QUOTES.filter((q) => q.status === stage.status).length;
-          return (
-            <button
-              key={stage.status}
-              onClick={() => setStatusFilter(stage.status === statusFilter ? "all" : stage.status)}
-              className={`bg-white rounded-card border p-3 text-center shadow-card hover:shadow-cardHover transition-all ${
-                statusFilter === stage.status ? "border-brand-action ring-2 ring-brand-action/20" : "border-slate-200/90"
-              }`}
-            >
-              <div className={`w-2 h-2 rounded-full ${stage.color} mx-auto mb-2`} />
-              <p className="text-lg font-bold text-slate-900">{count}</p>
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{stage.label}</p>
-            </button>
-          );
-        })}
-      </div>
+  const openCreate = () => {
+    const firstCustomer = customers[0]; setEditing(null); setFormOpen(true); setFormError(null);
+    setForm({ ...EMPTY_FORM, branch: firstCustomer?.branch || 0, customer: firstCustomer?.id || 0 });
+  };
+  const openEdit = (quotation: Quotation) => {
+    setEditing(quotation); setFormOpen(true); setFormError(null);
+    setForm({ branch: quotation.branch, customer: quotation.customer, status: quotation.status, discount: quotation.discount, tax: quotation.tax, valid_until: quotation.valid_until, notes: quotation.notes, items: quotation.items.map(({ id: _id, total: _total, ...item }) => item) });
+  };
+  const updateItem = (index: number, field: string, value: string | number | null) => setForm((current) => ({ ...current, items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.branch || !form.customer || form.items.some((item) => !item.description.trim() || Number(item.quantity) <= 0 || Number(item.unit_price) < 0)) { setFormError("Select a customer and provide a description, positive quantity and valid price for every item."); return; }
+    setSaving(true); setFormError(null);
+    try { if (editing) await quotationApi.update(editing.id, form); else await quotationApi.create(form); await load(); setEditing(null); setFormOpen(false); }
+    catch (requestError) { setFormError(errorText(requestError)); } finally { setSaving(false); }
+  };
+  const convert = async (quotation: Quotation) => {
+    setConvertingId(quotation.id); setError(null);
+    try { await quotationApi.convertToJob(quotation.id); await load(); } catch (requestError) { setError(errorText(requestError)); } finally { setConvertingId(null); }
+  };
+  const counts = useMemo(() => ["draft", "sent", "accepted", "converted", "rejected"].map((value) => ({ value, count: quotations.filter((quotation) => quotation.status === value).length })), [quotations]);
 
-      {/* Search & Filters */}
-      <div className="bg-white rounded-card border border-slate-200/90 p-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by customer, quote ID, or description..."
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-btn text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-action/20 focus:border-brand-action"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-slate-400" />
-          <div className="flex rounded-btn border border-slate-200 overflow-hidden text-xs">
-            {(["all", "graphics", "cnc"] as const).map((u) => (
-              <button
-                key={u}
-                onClick={() => setUnitFilter(u)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 font-medium capitalize transition-colors ${
-                  unitFilter === u ? "bg-brand-navy text-white" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                {u === "graphics" && <Printer className="w-3 h-3" />}
-                {u === "cnc" && <Cpu className="w-3 h-3" />}
-                {u === "all" ? "All Units" : u === "graphics" ? "Graphics" : "CNC"}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Quotations Table */}
-      <div className="bg-white rounded-card border border-slate-200/90 shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
-                <th className="py-3 px-4">Quote #</th>
-                <th className="py-3 px-4">Business Unit</th>
-                <th className="py-3 px-4">Customer</th>
-                <th className="py-3 px-4">Description</th>
-                <th className="py-3 px-4">Items</th>
-                <th className="py-3 px-4">Valid Until</th>
-                <th className="py-3 px-4 text-right">Amount</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filtered.map((q) => {
-                const cfg = STATUS_CONFIG[q.status];
-                const StatusIcon = cfg.icon;
-                return (
-                  <tr key={q.id} className="hover:bg-slate-50/60 transition-colors group cursor-pointer">
-                    <td className="py-3.5 px-4 font-mono font-semibold text-brand-navy">{q.id}</td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                        q.unit === "graphics" ? "bg-sky-50 text-sky-700 border-sky-200" : "bg-orange-50 text-orange-700 border-orange-200"
-                      }`}>
-                        {q.unit === "graphics" ? <Printer className="w-2.5 h-2.5" /> : <Cpu className="w-2.5 h-2.5" />}
-                        {q.unit === "graphics" ? "Graphics" : "CNC"}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">{q.customer}</td>
-                    <td className="py-3.5 px-4 text-slate-600 max-w-[220px] truncate">{q.description}</td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-[10px] font-bold">{q.items}</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-500">{q.validUntil}</td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-900">{q.amount}</td>
-                    <td className="py-3.5 px-4 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-semibold ${cfg.cls}`}>
-                        <StatusIcon className="w-2.5 h-2.5" />
-                        {cfg.label}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-brand-action transition-colors" />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && (
-          <div className="py-12 text-center text-slate-400">
-            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm font-medium">No quotations match your search</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <div className="space-y-5">
+    {formOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"><form onSubmit={save} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-card p-5 space-y-4"><div className="flex items-center justify-between"><h2 className="font-bold text-slate-900">{editing ? "Edit quotation" : "New quotation"}</h2><button type="button" onClick={() => { setEditing(null); setFormOpen(false); setFormError(null); }}><XCircle className="w-5 h-5 text-slate-400" /></button></div>{formError && <div role="alert" className="p-3 rounded-btn bg-rose-50 border border-rose-200 text-xs text-rose-700">{formError}</div>}<QuotationFields form={form} setForm={setForm} customers={customers} services={services} updateItem={updateItem} /><FormActions saving={saving} onCancel={() => { setEditing(null); setFormOpen(false); setFormError(null); }} /></form></div>}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><h1 className="text-lg font-bold text-slate-900 flex items-center gap-2"><FileText className="w-5 h-5 text-brand-action" />Orders & Quotations</h1><p className="text-xs text-slate-500 mt-0.5">{quotations.length} quotations in your permitted scope</p></div>{canCreate && <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-brand-action text-white rounded-btn text-xs font-semibold"><Plus className="w-4 h-4" />New Quotation</button>}</div>
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">{counts.map((entry) => <button key={entry.value} onClick={() => setStatus(status === entry.value ? "all" : entry.value as Quotation["status"])} className="bg-white rounded-card border border-slate-200 p-3 text-center"><p className="text-lg font-bold text-slate-900">{entry.count}</p><p className="text-[10px] uppercase text-slate-500">{entry.value}</p></button>)}</div>
+    <div className="bg-white rounded-card border border-slate-200 p-4 flex gap-3"><div className="relative flex-1"><Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search quotations…" className="form-input pl-8" /></div><Filter className="w-4 h-4 text-slate-400 mt-2" /></div>
+    {error && <div role="alert" className="p-4 bg-rose-50 border border-rose-200 rounded-card text-sm text-rose-700">{error}</div>}
+    {loading ? <div className="py-12 text-center text-slate-400">Loading quotations…</div> : quotations.length === 0 ? <div className="py-12 text-center text-slate-400"><FileText className="w-8 h-8 mx-auto mb-2 opacity-30" /><p className="text-sm">No quotations found.</p></div> : <div className="bg-white rounded-card border border-slate-200 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">Number</th><th className="p-3">Customer</th><th className="p-3">Branch</th><th className="p-3">Total</th><th className="p-3">Status</th><th className="p-3">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{quotations.map((quotation) => <tr key={quotation.id}><td className="p-3 font-mono font-semibold">{quotation.number}</td><td className="p-3 font-medium">{quotation.customer_details?.name}</td><td className="p-3">{quotation.branch_details?.code}</td><td className="p-3 font-semibold">KES {Number(quotation.total).toLocaleString()}</td><td className="p-3 capitalize">{quotation.status}</td><td className="p-3 flex gap-2">{canEdit && quotation.status !== "converted" && <button onClick={() => openEdit(quotation)} className="px-2 py-1 border rounded text-[11px]">Edit</button>}{canConvert && quotation.status !== "converted" && quotation.status !== "rejected" && <button disabled={convertingId === quotation.id} onClick={() => void convert(quotation)} className="px-2 py-1 bg-brand-action text-white rounded text-[11px] disabled:opacity-60">{convertingId === quotation.id ? "Converting…" : "Convert to job"}</button>}</td></tr>)}</tbody></table></div>}
+  </div>;
 };
+
+const QuotationFields: React.FC<{ form: QuotationInput; setForm: React.Dispatch<React.SetStateAction<QuotationInput>>; customers: Customer[]; services: ServiceOption[]; updateItem: (index: number, field: string, value: string | number | null) => void }> = ({ form, setForm, customers, services, updateItem }) => <>
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><label className="text-xs font-semibold">Customer<select required value={form.customer} onChange={(event) => { const customer = customers.find((entry) => entry.id === Number(event.target.value)); setForm({ ...form, customer: Number(event.target.value), branch: customer?.branch || form.branch }); }} className="form-input mt-1">{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.branch_details?.code})</option>)}</select></label><label className="text-xs font-semibold">Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Quotation["status"] })} className="form-input mt-1"><option value="draft">Draft</option><option value="sent">Sent</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></label></div>
+  {form.items.map((item, index) => <div key={index} className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr] gap-2 p-3 bg-slate-50 rounded-btn"><input required placeholder="Description" value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} className="form-input" /><input required type="number" min="0.01" step="0.01" placeholder="Quantity" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} className="form-input" /><select value={item.service || ""} onChange={(event) => { const service = services.find((entry) => entry.id === Number(event.target.value)); updateItem(index, "service", service?.id || null); if (service && !item.description) updateItem(index, "description", service.name); if (service && item.unit_price === "0") updateItem(index, "unit_price", service.base_price); }} className="form-input"><option value="">No service</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><input required type="number" min="0" step="0.01" placeholder="Unit price" value={item.unit_price} onChange={(event) => updateItem(index, "unit_price", event.target.value)} className="form-input" /></div>)}
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><input type="number" min="0" step="0.01" placeholder="Discount" value={form.discount} onChange={(event) => setForm({ ...form, discount: event.target.value })} className="form-input" /><input type="number" min="0" step="0.01" placeholder="Tax" value={form.tax} onChange={(event) => setForm({ ...form, tax: event.target.value })} className="form-input" /></div><textarea placeholder="Notes" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="form-input min-h-20" />
+</>;
+
+const FormActions: React.FC<{ saving: boolean; onCancel: () => void }> = ({ saving, onCancel }) => <div className="flex justify-end gap-2"><button type="button" onClick={onCancel} className="px-4 py-2 border rounded-btn text-xs">Cancel</button><button disabled={saving} className="px-4 py-2 bg-brand-action text-white rounded-btn text-xs font-semibold disabled:opacity-60">{saving ? "Saving…" : "Save quotation"}</button></div>;

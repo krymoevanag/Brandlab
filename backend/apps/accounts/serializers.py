@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.branches.serializers import BranchSerializer
-from .models import BusinessUnit, User, Role
+from .models import BusinessUnit, Permission, User, Role
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -154,6 +154,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
     business_units = serializers.SlugRelatedField(many=True, read_only=True, slug_field="code")
     business_unit_details = BusinessUnitSerializer(many=True, read_only=True, source="business_units")
     default_branch = BranchSerializer(read_only=True)
+    permissions = serializers.SerializerMethodField()
+
+    def get_permissions(self, obj):
+        if obj.is_superuser:
+            return list(Permission.objects.values_list("code", flat=True))
+        return list(
+            Permission.objects.filter(roles__users=obj)
+            .values_list("code", flat=True)
+            .distinct()
+        )
 
     class Meta:
         model = User
@@ -171,6 +181,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "business_units",
             "business_unit_details",
             "default_branch",
+            "permissions",
             "date_joined",
         ]
         read_only_fields = fields

@@ -4,17 +4,20 @@ import type { NavTab } from "./AppSidebar";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { DashboardPage } from "../../features/dashboard/DashboardPage";
-import { CustomersPage } from "../../features/customers/CustomersPage";
+import { CustomersApiPage } from "../../features/customers/CustomersApiPage";
 import { QuotationsPage } from "../../features/quotations/QuotationsPage";
 import { InvoicesPage } from "../../features/finance/InvoicesPage";
 import { JobsPage } from "../../features/jobs/JobsPage";
 import { ExpensesPage } from "../../features/expenses/ExpensesPage";
 import { ReportsPage } from "../../features/reports/ReportsPage";
 import { AuditPage } from "../../features/audit/AuditPage";
+import { DesignsPage } from "../../features/designs/DesignsPage";
 import { UsersPage } from "../../features/accounts/UsersPage";
+import type { AuthUser } from "../../App";
+import { can } from "../../auth/permissions";
 
 interface MainLayoutProps {
-  user: { email: string; roles: string[]; branch: string };
+  user: AuthUser;
   token: string;
   onLogout: () => void;
 }
@@ -40,7 +43,7 @@ const ComingSoonPage: React.FC<{ tab: NavTab; branch: string; unit: string }> = 
 );
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout }) => {
-  const canUseCnc = user.roles.includes("owner") || user.roles.includes("superadmin") || user.roles.includes("cnc_operator");
+  const canUseCnc = can(user, "dashboard.cnc.view");
   const allowedUnits: BusinessUnit[] = canUseCnc ? ["all", "graphics", "cnc"] : ["all", "graphics"];
   const [currentTab, setCurrentTab] = useState<NavTab>("dashboard");
   const [activeUnit, setActiveUnit] = useState<BusinessUnit>("all");
@@ -48,6 +51,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const renderPage = () => {
+    const requiredPermission: Partial<Record<NavTab, string>> = {
+      customers: "customers.view",
+      quotations: "quotations.view",
+      invoices: "finance.view",
+      jobs: "jobs.view",
+      cnc: "dashboard.cnc.view",
+      printing: "designs.view",
+      materials: "inventory.view",
+      expenses: "expenses.create",
+      payments: "payments.verify",
+      reports: "reports.view",
+      audit: "audit.view",
+      users: "users.manage",
+    };
+    const permission = requiredPermission[currentTab];
+    if (permission && !can(user, permission)) {
+      return <div className="p-10 bg-white rounded-card border border-slate-200 text-center"><h3 className="text-base font-bold text-slate-800">Access restricted</h3><p className="text-xs text-slate-500 mt-1">Your current permissions do not allow this section.</p></div>;
+    }
     switch (currentTab) {
       case "dashboard":
         return (
@@ -57,22 +78,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout })
             branchCode={currentBranch}
             userRole={user.roles[0] || "staff"}
             accessToken={token}
+            permissions={user.permissions}
           />
         );
       case "customers":
-        return <CustomersPage />;
+        return <CustomersApiPage permissions={user.permissions} />;
       case "quotations":
-        return <QuotationsPage />;
+        return <QuotationsPage permissions={user.permissions} />;
       case "invoices":
-        return <InvoicesPage />;
+        return <InvoicesPage permissions={user.permissions} />;
       case "jobs":
-        return <JobsPage />;
+        return <JobsPage permissions={user.permissions} />;
       case "expenses":
-        return <ExpensesPage />;
+        return <ExpensesPage permissions={user.permissions} branchId={user.branchId} />;
       case "reports":
         return <ReportsPage />;
       case "audit":
         return <AuditPage />;
+      case "printing":
+        return <DesignsPage permissions={user.permissions} />;
       case "users":
         return <UsersPage accessToken={token} />;
       default:
@@ -88,7 +112,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout })
         onSelectTab={setCurrentTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        roles={user.roles}
+        user={user}
       />
 
       {/* 2. Main content area */}

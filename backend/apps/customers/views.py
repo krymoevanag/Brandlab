@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, filters
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from apps.core.permissions import get_user_branches, user_is_owner, RoleAccessPermission
 from apps.audit.utils import log_audit
@@ -26,16 +27,21 @@ class CustomerViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Customer.objects.none()
         
-        # Customers can be viewed across branches, but can be filtered by branch affinity
-        return Customer.objects.select_related("branch").filter(is_active=True)
+        queryset = Customer.objects.select_related("branch").filter(is_active=True)
+        if user_is_owner(user):
+            return queryset
+        return queryset.filter(branch__in=get_user_branches(user))
 
     def perform_create(self, serializer):
         # Default customer's branch to user's default branch if not supplied
         branch = serializer.validated_data.get("branch")
-        if not branch and self.request.user.default_branch:
-            customer = serializer.save(branch=self.request.user.default_branch)
-        else:
-            customer = serializer.save()
+        if not branch:
+            branch = self.request.user.default_branch
+        if not branch and not user_is_owner(self.request.user):
+            raise ValidationError({"branch": "A permitted branch is required for this customer."})
+        if branch and not user_is_owner(self.request.user) and not get_user_branches(self.request.user).filter(id=branch.id).exists():
+            raise PermissionDenied("You cannot create a customer for this branch.")
+        customer = serializer.save(branch=branch)
 
         log_audit(
             request_or_user=self.request,
@@ -48,6 +54,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
         )
 
     def perform_update(self, serializer):
+        branch = serializer.validated_data.get("branch", serializer.instance.branch)
+        if not branch and not user_is_owner(self.request.user):
+            raise ValidationError({"branch": "A permitted branch is required for this customer."})
+        if branch and not user_is_owner(self.request.user) and not get_user_branches(self.request.user).filter(id=branch.id).exists():
+            raise PermissionDenied("You cannot move a customer to this branch.")
         old_data = CustomerSerializer(serializer.instance).data
         customer = serializer.save()
         log_audit(

@@ -1,277 +1,35 @@
-import React, { useState } from "react";
-import {
-  Receipt,
-  Plus,
-  Search,
-  CreditCard,
-  Banknote,
-  Smartphone,
-  Download,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { CreditCard, FileText, Plus, Receipt, Search } from "lucide-react";
+import { ApiError } from "../../api/client";
+import { customerApi, type Customer } from "../../api/customers";
+import { financeApi, type Invoice, type InvoiceInput, type Payment, type PaymentInput, type Receipt as ReceiptRecord } from "../../api/finance";
 
-type InvoiceStatus = "draft" | "issued" | "partially_paid" | "paid" | "overdue";
-type PaymentMethod = "cash" | "mpesa" | "bank_transfer" | "cheque";
+const errorText = (error: unknown) => error instanceof ApiError ? error.message : "Unable to complete the finance request.";
+const EMPTY_INVOICE: InvoiceInput = { branch: 0, customer: 0, job: null, status: "issued", subtotal: "", discount: "0", tax: "0", due_at: null, notes: "" };
 
-interface Invoice {
-  id: string;
-  customer: string;
-  branch: string;
-  total: number;
-  paid: number;
-  status: InvoiceStatus;
-  issuedDate: string;
-  dueDate: string;
-  jobRef: string;
-}
-
-interface Payment {
-  id: string;
-  invoiceRef: string;
-  customer: string;
-  amount: number;
-  method: PaymentMethod;
-  reference: string;
-  date: string;
-  collectedBy: string;
-}
-
-const STATUS_CONFIG: Record<InvoiceStatus, { label: string; cls: string; icon: React.ElementType }> = {
-  draft: { label: "Draft", cls: "bg-slate-100 text-slate-700 border-slate-200", icon: Clock },
-  issued: { label: "Issued", cls: "bg-sky-50 text-sky-700 border-sky-200", icon: Receipt },
-  partially_paid: { label: "Partial", cls: "bg-amber-50 text-amber-700 border-amber-200", icon: AlertCircle },
-  paid: { label: "Paid in Full", cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
-  overdue: { label: "Overdue", cls: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertCircle },
+export const InvoicesPage: React.FC<{ permissions?: string[] }> = ({ permissions = [] }) => {
+  const canView = permissions.includes("finance.view"); const canPay = permissions.includes("payments.verify");
+  const [tab, setTab] = useState<"invoices" | "payments" | "receipts">("invoices"); const [invoices, setInvoices] = useState<Invoice[]>([]); const [payments, setPayments] = useState<Payment[]>([]); const [receipts, setReceipts] = useState<ReceiptRecord[]>([]); const [customers, setCustomers] = useState<Customer[]>([]); const [search, setSearch] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [invoiceForm, setInvoiceForm] = useState<InvoiceInput>(EMPTY_INVOICE); const [paymentForm, setPaymentForm] = useState<PaymentInput>({ branch: 0, customer: 0, method: "mpesa", amount: "", reference: "", idempotency_key: "", allocations: [] }); const [formOpen, setFormOpen] = useState<"invoice" | "payment" | null>(null); const [saving, setSaving] = useState(false); const [reversingId, setReversingId] = useState<number | null>(null);
+  const load = useCallback(async () => { setLoading(true); setError(null); try { const [invoiceResponse, paymentResponse, receiptResponse, customerResponse] = await Promise.all([financeApi.invoices(search.trim()), financeApi.payments(), financeApi.receipts(), customerApi.list({ is_active: true })]); setInvoices(invoiceResponse.results); setPayments(paymentResponse.results); setReceipts(receiptResponse.results); setCustomers(customerResponse.results); } catch (requestError) { setError(errorText(requestError)); } finally { setLoading(false); } }, [search]);
+  useEffect(() => { void load(); }, [load]);
+  const invoiceBalance = useMemo(() => invoices.filter((invoice) => Number(invoice.balance_due) > 0), [invoices]);
+  const openInvoice = () => { const customer = customers[0]; setInvoiceForm({ ...EMPTY_INVOICE, branch: customer?.branch || 0, customer: customer?.id || 0 }); setFormOpen("invoice"); };
+  const openPayment = () => { const invoice = invoiceBalance[0]; setPaymentForm({ branch: invoice?.branch || 0, customer: invoice?.customer || 0, method: "mpesa", amount: invoice?.balance_due || "", reference: "", idempotency_key: crypto.randomUUID(), allocations: invoice ? [{ invoice: invoice.id, amount: invoice.balance_due }] : [] }); setFormOpen("payment"); };
+  const saveInvoice = async (event: React.FormEvent) => { event.preventDefault(); setSaving(true); setError(null); try { await financeApi.createInvoice(invoiceForm); setFormOpen(null); await load(); } catch (requestError) { setError(errorText(requestError)); } finally { setSaving(false); } };
+  const savePayment = async (event: React.FormEvent) => { event.preventDefault(); setSaving(true); setError(null); try { await financeApi.recordPayment(paymentForm); setFormOpen(null); await load(); } catch (requestError) { setError(errorText(requestError)); } finally { setSaving(false); } };
+  const reversePayment = async (payment: Payment) => { const reason = window.prompt("Enter the reason for reversing this payment:"); if (!reason?.trim()) return; setReversingId(payment.id); setError(null); try { await financeApi.reversePayment(payment.id, reason.trim()); await load(); } catch (requestError) { setError(errorText(requestError)); } finally { setReversingId(null); } };
+  if (!canView) return <div className="p-10 text-center bg-white rounded-card border border-slate-200">You do not have permission to view financial records.</div>;
+  return <div className="space-y-5">
+    {formOpen === "invoice" && <form onSubmit={saveInvoice} className="fixed inset-0 z-50 m-auto h-fit max-w-lg bg-white rounded-card shadow-2xl p-5 space-y-3"><h2 className="font-bold">Create invoice</h2><select required value={invoiceForm.customer} onChange={(event) => { const customer = customers.find((entry) => entry.id === Number(event.target.value)); setInvoiceForm({ ...invoiceForm, customer: Number(event.target.value), branch: customer?.branch || invoiceForm.branch }); }} className="form-input">{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} ({customer.branch_details?.code})</option>)}</select><input required type="number" min="0.01" step="0.01" placeholder="Subtotal" value={invoiceForm.subtotal} onChange={(event) => setInvoiceForm({ ...invoiceForm, subtotal: event.target.value })} className="form-input" /><input type="number" min="0" step="0.01" placeholder="Discount" value={invoiceForm.discount} onChange={(event) => setInvoiceForm({ ...invoiceForm, discount: event.target.value })} className="form-input" /><input type="number" min="0" step="0.01" placeholder="Tax" value={invoiceForm.tax} onChange={(event) => setInvoiceForm({ ...invoiceForm, tax: event.target.value })} className="form-input" /><div className="flex justify-end gap-2"><button type="button" onClick={() => setFormOpen(null)} className="px-4 py-2 border rounded-btn text-xs">Cancel</button><button disabled={saving} className="px-4 py-2 bg-brand-action text-white rounded-btn text-xs">{saving ? "Saving…" : "Create invoice"}</button></div></form>}
+    {formOpen === "payment" && <form onSubmit={savePayment} className="fixed inset-0 z-50 m-auto h-fit max-w-lg bg-white rounded-card shadow-2xl p-5 space-y-3"><div><h2 className="font-bold text-slate-900">Record customer payment</h2><p className="text-xs text-slate-500 mt-1">The invoice balance is confirmed by the server when you save.</p></div>{error && <div role="alert" className="p-3 bg-rose-50 border border-rose-200 rounded-btn text-xs text-rose-700">{error}</div>}<label className="block text-xs font-semibold text-slate-700">Invoice<select required value={paymentForm.allocations[0]?.invoice || ""} onChange={(event) => { const invoice = invoices.find((entry) => entry.id === Number(event.target.value)); setPaymentForm({ ...paymentForm, branch: invoice?.branch || 0, customer: invoice?.customer || 0, allocations: invoice ? [{ invoice: invoice.id, amount: paymentForm.amount || invoice.balance_due }] : [] }); }} className="form-input mt-1"><option value="">Select invoice</option>{invoiceBalance.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number} · KES {invoice.balance_due} due</option>)}</select></label><label className="block text-xs font-semibold text-slate-700">Payment method<select value={paymentForm.method} onChange={(event) => setPaymentForm({ ...paymentForm, method: event.target.value as PaymentInput["method"] })} className="form-input mt-1"><option value="mpesa">M-Pesa</option><option value="cash">Cash</option><option value="bank_transfer">Bank transfer</option></select></label><label className="block text-xs font-semibold text-slate-700">Amount (KES)<input required type="number" min="0.01" step="0.01" placeholder="0.00" value={paymentForm.amount} onChange={(event) => setPaymentForm({ ...paymentForm, amount: event.target.value, allocations: paymentForm.allocations.map((allocation) => ({ ...allocation, amount: event.target.value })) })} className="form-input mt-1" /></label><label className="block text-xs font-semibold text-slate-700">Reference<input required placeholder="M-Pesa or bank reference" value={paymentForm.reference} onChange={(event) => setPaymentForm({ ...paymentForm, reference: event.target.value })} className="form-input mt-1" /></label><p className="text-[11px] text-slate-500 bg-slate-50 border border-slate-200 rounded-btn p-2">A retry-safe payment key is generated automatically and remains unchanged if the request fails.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => { setError(null); setFormOpen(null); }} className="px-4 py-2 border rounded-btn text-xs">Cancel</button><button disabled={saving || !paymentForm.allocations.length || Number(paymentForm.amount) <= 0} className="px-4 py-2 bg-brand-action text-white rounded-btn text-xs font-bold disabled:opacity-60">{saving ? "Saving payment…" : "Save payment"}</button></div></form>}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><h1 className="text-lg font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-brand-action" />Finance & Documents</h1><p className="text-xs text-slate-500">Live records from your permitted branches</p></div><div className="flex flex-wrap gap-2">{canView && <button onClick={openInvoice} className="inline-flex items-center gap-1.5 min-h-10 px-4 py-2 border border-slate-300 rounded-btn text-xs font-bold"><Plus className="w-4 h-4" />Create invoice</button>}{canPay && <button disabled={!invoiceBalance.length} onClick={openPayment} className="inline-flex items-center gap-1.5 min-h-10 px-4 py-2 bg-brand-navy text-white rounded-btn text-xs font-bold disabled:opacity-50"><CreditCard className="w-4 h-4" />Record payment</button>}</div></div>
+    <div className="flex gap-1 bg-slate-100 p-1 rounded-btn w-fit"><button onClick={() => setTab("invoices")} className={`px-4 py-1.5 rounded text-xs ${tab === "invoices" ? "bg-white shadow" : ""}`}>Invoices ({invoices.length})</button><button onClick={() => setTab("payments")} className={`px-4 py-1.5 rounded text-xs ${tab === "payments" ? "bg-white shadow" : ""}`}>Payments ({payments.length})</button><button onClick={() => setTab("receipts")} className={`px-4 py-1.5 rounded text-xs ${tab === "receipts" ? "bg-white shadow" : ""}`}>Receipts ({receipts.length})</button></div>
+    <div className="bg-white rounded-card border border-slate-200 p-4"><div className="relative"><Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search invoices…" className="form-input pl-8" /></div></div>
+    {error && <div role="alert" className="p-3 bg-rose-50 border border-rose-200 rounded-card text-xs text-rose-700">{error}</div>}
+    {loading ? <div className="py-12 text-center text-slate-400">Loading financial records…</div> : tab === "invoices" ? <RecordsTable headers={["Invoice", "Customer", "Total", "Paid", "Balance", "Status"]} rows={invoices.map((invoice) => [invoice.number, invoice.customer_details?.name, `KES ${Number(invoice.total).toLocaleString()}`, `KES ${Number(invoice.paid_amount).toLocaleString()}`, `KES ${Number(invoice.balance_due).toLocaleString()}`, invoice.status])} icon={<FileText className="w-8 h-8" />} /> : tab === "payments" ? <PaymentTable payments={payments} canReverse={permissions.includes("payments.reverse")} reversingId={reversingId} onReverse={(payment) => void reversePayment(payment)} /> : <RecordsTable headers={["Receipt", "Customer", "Amount", "Method", "Reference"]} rows={receipts.map((receipt) => [receipt.number, receipt.customer_name, `KES ${Number(receipt.payment_amount).toLocaleString()}`, receipt.payment_method, receipt.payment_reference || "—"])} icon={<Receipt className="w-8 h-8" />} />}
+  </div>;
 };
 
-const PAYMENT_METHOD_CONFIG: Record<PaymentMethod, { label: string; icon: React.ElementType; color: string }> = {
-  cash: { label: "Cash", icon: Banknote, color: "text-emerald-700" },
-  mpesa: { label: "M-Pesa", icon: Smartphone, color: "text-green-700" },
-  bank_transfer: { label: "Bank Transfer", icon: CreditCard, color: "text-blue-700" },
-  cheque: { label: "Cheque", icon: Receipt, color: "text-slate-700" },
-};
+const RecordsTable: React.FC<{ headers: string[]; rows: string[][]; icon: React.ReactNode }> = ({ headers, rows, icon }) => rows.length === 0 ? <div className="py-12 text-center text-slate-400">{icon}<p className="mt-2">No records found.</p></div> : <div className="bg-white rounded-card border border-slate-200 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{headers.map((header) => <th key={header} className="p-3">{header}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex} className="p-3">{cell}</td>)}</tr>)}</tbody></table></div>;
 
-const DEMO_INVOICES: Invoice[] = [
-  { id: "INV-2026-0056", customer: "Safaricom PLC", branch: "NBI", total: 145000, paid: 145000, status: "paid", issuedDate: "14 Oct 2026", dueDate: "28 Oct 2026", jobRef: "AZNr-JOB-2026-0040" },
-  { id: "INV-2026-0057", customer: "Apex Architects", branch: "NBI", total: 88500, paid: 50000, status: "partially_paid", issuedDate: "15 Oct 2026", dueDate: "29 Oct 2026", jobRef: "AZNr-JOB-2026-0041" },
-  { id: "INV-2026-0058", customer: "KenGen Corporate", branch: "NBI", total: 62000, paid: 0, status: "issued", issuedDate: "17 Oct 2026", dueDate: "31 Oct 2026", jobRef: "AZNr-JOB-2026-0044" },
-  { id: "INV-2026-0059", customer: "Meru Greens Ltd", branch: "MER", total: 34000, paid: 34000, status: "paid", issuedDate: "12 Oct 2026", dueDate: "26 Oct 2026", jobRef: "AZMr-JOB-2026-0019" },
-  { id: "INV-2026-0055", customer: "Baraka Events Ltd", branch: "MER", total: 72000, paid: 0, status: "overdue", issuedDate: "5 Oct 2026", dueDate: "19 Oct 2026", jobRef: "AZMr-JOB-2026-0017" },
-  { id: "INV-2026-0060", customer: "Java House Kenya", branch: "NBI", total: 28000, paid: 0, status: "draft", issuedDate: "19 Oct 2026", dueDate: "2 Nov 2026", jobRef: "AZNr-JOB-2026-0045" },
-];
-
-const DEMO_PAYMENTS: Payment[] = [
-  { id: "PAY-001", invoiceRef: "INV-2026-0056", customer: "Safaricom PLC", amount: 145000, method: "bank_transfer", reference: "SAFKE2026101401", date: "14 Oct 2026", collectedBy: "Jane W." },
-  { id: "PAY-002", invoiceRef: "INV-2026-0057", customer: "Apex Architects", amount: 50000, method: "mpesa", reference: "MPESA1234ABC", date: "17 Oct 2026", collectedBy: "John M." },
-  { id: "PAY-003", invoiceRef: "INV-2026-0059", customer: "Meru Greens Ltd", amount: 34000, method: "cash", reference: "—", date: "13 Oct 2026", collectedBy: "Alice N." },
-];
-
-const fmt = (n: number) => `KES ${n.toLocaleString()}`;
-
-export const InvoicesPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"invoices" | "payments">("invoices");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
-
-  const totalOutstanding = DEMO_INVOICES
-    .filter((i) => i.status !== "paid")
-    .reduce((acc, i) => acc + (i.total - i.paid), 0);
-  const totalCollected = DEMO_PAYMENTS.reduce((acc, p) => acc + p.amount, 0);
-  const overdueCount = DEMO_INVOICES.filter((i) => i.status === "overdue").length;
-
-  const filteredInvoices = DEMO_INVOICES.filter((inv) => {
-    const qs = search.toLowerCase();
-    const matchSearch = !qs || inv.customer.toLowerCase().includes(qs) || inv.id.toLowerCase().includes(qs);
-    const matchStatus = statusFilter === "all" || inv.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-brand-action" />
-            Invoices & Payments
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {DEMO_INVOICES.length} invoices ·
-            <span className="text-rose-700 font-semibold ml-1">{overdueCount} overdue</span>
-          </p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-brand-action hover:bg-blue-700 text-white rounded-btn text-xs font-semibold shadow-sm transition-all">
-          <Plus className="w-4 h-4" />
-          Record Payment
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white rounded-card border border-slate-200/90 shadow-card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Outstanding Balance</p>
-          <p className="text-xl font-bold text-rose-700">{fmt(totalOutstanding)}</p>
-          <p className="text-[11px] text-slate-400 mt-1">{DEMO_INVOICES.filter((i) => i.status !== "paid" && i.status !== "draft").length} unpaid invoices</p>
-        </div>
-        <div className="bg-white rounded-card border border-slate-200/90 shadow-card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Collected This Month</p>
-          <p className="text-xl font-bold text-emerald-700">{fmt(totalCollected)}</p>
-          <p className="text-[11px] text-slate-400 mt-1">{DEMO_PAYMENTS.length} payment transactions</p>
-        </div>
-        <div className="bg-white rounded-card border border-slate-200/90 shadow-card p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Overdue Invoices</p>
-          <p className="text-xl font-bold text-amber-700">{overdueCount}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Require immediate follow-up</p>
-        </div>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-slate-100 rounded-btn w-fit">
-        <button onClick={() => setActiveTab("invoices")} className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${activeTab === "invoices" ? "bg-white shadow-sm text-slate-900" : "text-slate-600 hover:text-slate-900"}`}>
-          Invoices
-        </button>
-        <button onClick={() => setActiveTab("payments")} className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${activeTab === "payments" ? "bg-white shadow-sm text-slate-900" : "text-slate-600 hover:text-slate-900"}`}>
-          Payment Ledger
-        </button>
-      </div>
-
-      {activeTab === "invoices" && (
-        <>
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search customer or invoice number..."
-                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-btn text-xs shadow-card text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-action/20 focus:border-brand-action"
-              />
-            </div>
-            <div className="flex rounded-btn border border-slate-200 overflow-hidden text-xs bg-white shadow-card">
-              {(["all", "issued", "partially_paid", "paid", "overdue"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-2.5 py-1.5 font-medium capitalize transition-colors whitespace-nowrap ${
-                    statusFilter === s ? "bg-brand-navy text-white" : "text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {s === "partially_paid" ? "Partial" : s === "all" ? "All" : STATUS_CONFIG[s as InvoiceStatus]?.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Invoice Table */}
-          <div className="bg-white rounded-card border border-slate-200/90 shadow-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
-                    <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4">Job Ref</th>
-                    <th className="py-3 px-4">Issued</th>
-                    <th className="py-3 px-4">Due</th>
-                    <th className="py-3 px-4 text-right">Total</th>
-                    <th className="py-3 px-4 text-right">Paid</th>
-                    <th className="py-3 px-4 text-right">Balance</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredInvoices.map((inv) => {
-                    const cfg = STATUS_CONFIG[inv.status];
-                    const StatusIcon = cfg.icon;
-                    const balance = inv.total - inv.paid;
-                    return (
-                      <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors group cursor-pointer">
-                        <td className="py-3.5 px-4 font-mono font-bold text-brand-navy">{inv.id}</td>
-                        <td className="py-3.5 px-4 font-semibold text-slate-900">{inv.customer}</td>
-                        <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{inv.jobRef}</td>
-                        <td className="py-3.5 px-4 text-slate-500">{inv.issuedDate}</td>
-                        <td className={`py-3.5 px-4 font-medium ${inv.status === "overdue" ? "text-rose-700" : "text-slate-500"}`}>{inv.dueDate}</td>
-                        <td className="py-3.5 px-4 text-right font-bold text-slate-900">{fmt(inv.total)}</td>
-                        <td className="py-3.5 px-4 text-right font-semibold text-emerald-700">{fmt(inv.paid)}</td>
-                        <td className={`py-3.5 px-4 text-right font-bold ${balance > 0 ? "text-rose-700" : "text-emerald-700"}`}>
-                          {balance > 0 ? fmt(balance) : "—"}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-semibold ${cfg.cls}`}>
-                            <StatusIcon className="w-2.5 h-2.5" />
-                            {cfg.label}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button title="Download PDF" className="p-1 text-slate-400 hover:text-brand-action transition-colors">
-                              <Download className="w-3.5 h-3.5" />
-                            </button>
-                            <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-brand-action transition-colors" />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {activeTab === "payments" && (
-        <div className="bg-white rounded-card border border-slate-200/90 shadow-card overflow-hidden">
-          <div className="p-4 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-900">Payment Ledger</h3>
-            <p className="text-xs text-slate-500">All recorded payment transactions</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
-                  <th className="py-3 px-4">Payment #</th>
-                  <th className="py-3 px-4">Invoice Ref</th>
-                  <th className="py-3 px-4">Customer</th>
-                  <th className="py-3 px-4">Method</th>
-                  <th className="py-3 px-4">Reference</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Collected By</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {DEMO_PAYMENTS.map((p) => {
-                  const mc = PAYMENT_METHOD_CONFIG[p.method];
-                  const MIcon = mc.icon;
-                  return (
-                    <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-brand-navy">{p.id}</td>
-                      <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{p.invoiceRef}</td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-900">{p.customer}</td>
-                      <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${mc.color}`}>
-                          <MIcon className="w-3.5 h-3.5" />
-                          {mc.label}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{p.reference}</td>
-                      <td className="py-3.5 px-4 text-slate-500">{p.date}</td>
-                      <td className="py-3.5 px-4 text-slate-600">{p.collectedBy}</td>
-                      <td className="py-3.5 px-4 text-right font-bold text-emerald-700">{fmt(p.amount)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+const PaymentTable: React.FC<{ payments: Payment[]; canReverse: boolean; reversingId: number | null; onReverse: (payment: Payment) => void }> = ({ payments, canReverse, reversingId, onReverse }) => payments.length === 0 ? <div className="py-12 text-center text-slate-400"><CreditCard className="w-8 h-8 mx-auto" /><p className="mt-2">No payment records found.</p></div> : <div className="bg-white rounded-card border border-slate-200 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3">Payment</th><th className="p-3">Customer</th><th className="p-3">Amount</th><th className="p-3">Method</th><th className="p-3">Status</th>{canReverse && <th className="p-3">Actions</th>}</tr></thead><tbody className="divide-y divide-slate-100">{payments.map((payment) => <tr key={payment.id}><td className="p-3 font-mono">#{payment.id}</td><td className="p-3 font-medium">{payment.customer_details?.name}</td><td className="p-3 font-semibold">KES {Number(payment.amount).toLocaleString()}</td><td className="p-3 capitalize">{payment.method.replaceAll("_", " ")}</td><td className="p-3 capitalize">{payment.status}</td>{canReverse && <td className="p-3">{payment.status === "completed" && <button disabled={reversingId === payment.id} onClick={() => onReverse(payment)} className="px-2.5 py-1.5 border border-rose-300 text-rose-700 rounded-btn text-[11px] font-semibold disabled:opacity-50">{reversingId === payment.id ? "Reversing…" : "Reverse"}</button>}</td>}</tr>)}</tbody></table></div>;
