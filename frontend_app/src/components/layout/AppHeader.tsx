@@ -1,13 +1,14 @@
 import React from "react";
 import type { BusinessUnit } from "../../types/business";
 import { BusinessUnitSwitcher } from "../branding/BusinessUnitSwitcher";
-import { Search, Bell, MapPin, LogOut } from "lucide-react";
+import { Search, Bell, MapPin, LogOut, Lock } from "lucide-react";
 
 interface AppHeaderProps {
   activeUnit: BusinessUnit;
   onUnitChange: (unit: BusinessUnit) => void;
   currentBranch: string;
   onBranchChange: (branch: string) => void;
+  canSwitchBranch: boolean;
   userEmail: string;
   userRole: string;
   allowedUnits: BusinessUnit[];
@@ -19,6 +20,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onUnitChange,
   currentBranch,
   onBranchChange,
+  canSwitchBranch,
   userEmail,
   userRole,
   allowedUnits,
@@ -62,17 +64,29 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="flex items-center gap-2">
 
         {/* Branch selector */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-surface border border-brand-border rounded-btn text-xs">
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-surface border rounded-btn text-xs ${
+            canSwitchBranch ? "border-brand-border" : "border-slate-300"
+          }`}
+          title={canSwitchBranch ? "Change active branch" : "Branch changes are restricted to owners and administrators"}
+        >
           <MapPin className="w-3.5 h-3.5 text-brand-charcoal" />
-          <select
-            value={currentBranch}
-            onChange={(e) => onBranchChange(e.target.value)}
-            aria-label="Select branch"
-            className="bg-transparent font-semibold text-brand-charcoal focus:outline-none cursor-pointer text-xs"
-          >
-            <option value="NBI">Nairobi (NBI)</option>
-            <option value="MER">Meru (MER)</option>
-          </select>
+          {canSwitchBranch ? (
+            <select
+              value={currentBranch}
+              onChange={(e) => onBranchChange(e.target.value)}
+              aria-label="Select branch"
+              className="bg-transparent font-semibold text-brand-charcoal focus:outline-none cursor-pointer text-xs"
+            >
+              <option value="NBI">Nairobi (NBI)</option>
+              <option value="MER">Meru (MER)</option>
+            </select>
+          ) : (
+            <span aria-label="Current branch" className="font-semibold text-brand-charcoal">
+              {currentBranch === "MER" ? "Meru (MER)" : "Nairobi (NBI)"}
+            </span>
+          )}
+          {!canSwitchBranch && <Lock aria-hidden="true" className="w-3 h-3 text-brand-muted" />}
         </div>
 
         {/* Notifications */}

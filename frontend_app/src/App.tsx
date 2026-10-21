@@ -9,12 +9,14 @@ export interface AuthUser {
   branch: string;
   branchId: number;
   permissions: string[];
+  isSuperuser: boolean;
 }
 
 function profileToAuthUser(profile: {
   email: string;
   roles?: string[];
   permissions?: string[];
+  is_superuser?: boolean;
   default_branch?: { id?: number; code?: string } | null;
 }): AuthUser {
   return {
@@ -23,6 +25,7 @@ function profileToAuthUser(profile: {
     permissions: Array.isArray(profile.permissions) ? profile.permissions : [],
     branch: profile.default_branch?.code || "NBI",
     branchId: profile.default_branch?.id || 0,
+    isSuperuser: Boolean(profile.is_superuser),
   };
 }
 
@@ -40,7 +43,24 @@ export function App() {
     const refreshProfile = async () => {
       try {
         const profile = await apiClient.request<Parameters<typeof profileToAuthUser>[0]>("/v1/auth/me/");
-        if (active) setUser(profileToAuthUser(profile));
+        if (active) {
+          setUser((currentUser) => {
+            const refreshedUser = profileToAuthUser(profile);
+            const canSwitchBranch = Boolean(
+              refreshedUser.isSuperuser ||
+              refreshedUser.roles.includes("owner") ||
+              refreshedUser.roles.includes("superadmin"),
+            );
+
+            // The selected login branch is the active branch for ordinary users.
+            // Owners and administrators may change it during the session.
+            if (currentUser && !canSwitchBranch) {
+              refreshedUser.branch = currentUser.branch;
+              refreshedUser.branchId = currentUser.branchId;
+            }
+            return refreshedUser;
+          });
+        }
       } catch {
         // The API client clears the session when token refresh fails.
       }

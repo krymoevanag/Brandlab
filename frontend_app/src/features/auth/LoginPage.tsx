@@ -5,7 +5,7 @@ import { Lock, Mail, MapPin, ArrowRight, ShieldCheck } from "lucide-react";
 import { ApiError, apiClient, type AuthSession } from "../../api/client";
 
 interface LoginPageProps {
-  onLoginSuccess: (session: AuthSession, user: { email: string; roles: string[]; branch: string; branchId: number; permissions: string[] }) => void;
+  onLoginSuccess: (session: AuthSession, user: { email: string; roles: string[]; branch: string; branchId: number; permissions: string[]; isSuperuser: boolean }) => void;
 }
 
 function loginErrorMessage(error: unknown): string {
@@ -37,7 +37,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const data = await apiClient.request<{
         access: string;
         refresh: string;
-        user: { email: string; roles?: string[]; permissions?: string[]; default_branch?: { id?: number; code?: string } | null };
+        user: { email: string; roles?: string[]; permissions?: string[]; is_superuser?: boolean; default_branch?: { id?: number; code?: string } | null };
       }>("/v1/auth/token/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,6 +51,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         branch: data.user.default_branch?.code || branch,
         branchId: data.user.default_branch?.id || 0,
         permissions: Array.isArray(data.user.permissions) ? data.user.permissions : [],
+        isSuperuser: Boolean(data.user.is_superuser),
       });
     } catch (err) {
       setError(loginErrorMessage(err));

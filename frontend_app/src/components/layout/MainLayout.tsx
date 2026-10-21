@@ -44,6 +44,7 @@ const ComingSoonPage: React.FC<{ tab: NavTab; branch: string; unit: string }> = 
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout }) => {
   const canUseCnc = can(user, "dashboard.cnc.view");
+  const canSwitchBranch = user.isSuperuser || user.roles.includes("owner") || user.roles.includes("superadmin");
   const allowedUnits: BusinessUnit[] = canUseCnc ? ["all", "graphics", "cnc"] : ["all", "graphics"];
   const [currentTab, setCurrentTab] = useState<NavTab>("dashboard");
   const [activeUnit, setActiveUnit] = useState<BusinessUnit>("all");
@@ -123,6 +124,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, token, onLogout })
           onUnitChange={setActiveUnit}
           currentBranch={currentBranch}
           onBranchChange={setCurrentBranch}
+          canSwitchBranch={canSwitchBranch}
           userEmail={user.email}
           userRole={user.roles[0] || "staff"}
           allowedUnits={allowedUnits}

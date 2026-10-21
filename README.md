@@ -490,6 +490,8 @@ The exact data and permissions available from an endpoint depend on the backend 
 
 The login form sends the selected branch to the JWT endpoint. The backend rejects a login when the user is not assigned to that active branch. Selecting a branch in the frontend does not grant access to it.
 
+During an active session, branch switching is restricted to owners, superusers, and users with the `owner` or `superadmin` role. Other users remain on the branch selected at login; their API access remains enforced by the backend's assigned-branch checks.
+
 The frontend refreshes the authenticated profile after login and during an active session. If a role or permission changes, the updated effective permissions are reflected after the profile refresh.
 
 ## Development accounts
