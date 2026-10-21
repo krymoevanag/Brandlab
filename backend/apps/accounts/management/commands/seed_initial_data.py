@@ -109,7 +109,7 @@ class Command(BaseCommand):
             "branch_manager": [p for code, p in permissions.items() if code not in {"users.manage", "settings.manage"}],
             "finance_officer": [permissions[c] for c in ["dashboard.view", "finance.view", "payments.verify", "payments.reverse", "expenses.create", "expenses.approve", "expenses.pay", "reports.view"]],
             "sales_attendant": [permissions[c] for c in ["dashboard.view", "customers.view", "customers.create", "customers.edit", "quotations.view", "quotations.create", "quotations.edit", "jobs.view", "jobs.create"]],
-            "designer": [permissions[c] for c in ["dashboard.view", "customers.view", "jobs.view", "designs.view", "designs.submit"]],
+            "designer": [permissions[c] for c in ["dashboard.view", "customers.view", "jobs.view", "jobs.create", "designs.view", "designs.submit"]],
             "cnc_operator": [permissions[c] for c in ["dashboard.view", "dashboard.cnc.view", "customers.view", "quotations.view", "jobs.view", "jobs.edit", "inventory.view", "inventory.issue"]],
             "storekeeper": [permissions[c] for c in ["dashboard.view", "inventory.view", "inventory.receive", "inventory.issue", "expenses.create"]],
             "auditor": [permissions[c] for c in ["dashboard.view", "finance.view", "inventory.view", "reports.view", "audit.view"]],
